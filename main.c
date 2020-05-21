@@ -60,6 +60,7 @@ struct tm string_to_time(const char *string);
 status iterate_events(void* (*func)(void*));
 void* print_event_short(void *e);
 void* print_event_long(void *e);
+void* set_max_ID(void *arg);
 
 int main()
 {
@@ -151,9 +152,8 @@ void* filename_new_event(void *arg)
 
 	events[event_id] = new_event;
 	have_ID[event_id] = 1;
-	max_ID = max(max_ID,event_id);
 
-	fclose(event_file);
+	//fclose(event_file);
 }
 
 char* lineread(FILE *stream)
@@ -184,13 +184,14 @@ status destructor()
 
 status init(const char *data_dir)
 {
-	load_events(data_dir);
-	//iterate_directory(data_dir,set_max_ID);
+	iterate_directory(data_dir,set_max_ID);
+	printf("%u\n",max_ID);
 
 	have_ID = calloc(max_ID+1,sizeof *have_ID);
 	memset(have_ID,0,max_ID+1);
 
-	//iterate_directory(data_dir,fill_have_ID);
+
+	load_events(data_dir);
 
 	for(int i=1;i<=max_ID;++i) {
 		if(have_ID == 0) {
@@ -225,15 +226,14 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 	}
 
 	Assert(0 == errno,"Error reading directory");
+	Assert(-1 != closedir(data),"Error closing directory");
 	return 0;
 }
 
 status iterate_events(void* (*func)(void*))
 {
 	for(int i=0;i<max_ID;++i) {
-		if(have_ID[i]) {
-			(func)(events + i);
-		}
+		printf("%d\n",have_ID[i]);
 	}
 }
 
@@ -241,13 +241,19 @@ void* print_event_short(void *e)
 {
 	event ev = *(event*)e;
 
-	printf("(%u) [%04d] -> [%04d] %s",
+	printf("(%u) [%04d] -> [%04d]\n",
 		ev.event_id,
 		ev.start_time,
-		ev.end_time,
-		ev.description);
+		ev.end_time);
+		//ev.description);
 }
 
 void* print_event_long(void *e)
 {
+}
+
+void* set_max_ID(void *arg)
+{
+	unsigned id = atoi((char*)arg);
+	max_ID = max(max_ID,id);
 }
