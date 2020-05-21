@@ -17,6 +17,7 @@
 #define UNUSED(x) (void)(x)
 #define DEBUG(msg) fprintf(stderr,"%s\n",msg)
 #define DATE_SIZE_MAX (15)
+#define NEW_EVENT (1)
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -61,20 +62,44 @@ status iterate_events(void* (*func)(void*));
 void* print_event_short(void *e);
 void* print_event_long(void *e);
 void* set_max_ID(void *arg);
+event new_event();
 
-int main()
+int main(int argc, char **argv)
 {
 	init(DATA_DIR);
-	iterate_events(print_event_short);
 
 	destructor();
 	return 0;
 }
 
+event new_event()
+{	
+	event new;
+	//unsigned event_id;
+	//char *description;
+	//struct tm start_date;
+	//struct tm end_date;
+	//short int start_time;
+	//short int end_time;
+	//small_int repeat_mode;
+	//small_int repeat_frequency;
+	//unsigned num_of_skipped_dates;
+	//struct tm *skipped_dates;
+
+	new.event_id = first_free_ID;
+	printf("Event description: ");
+	new.description = lineread(stdin);
+
+	printf("Enter date: ");
+	char *start_date = lineread(stdin);
+	//osAssert(NULL != strptime(start_date,
+
+}
+
 status load_events(const char *data_dir)
 {
 	Assert(-1 != chdir(data_dir),"Error changing directory");
-	events = calloc(max_ID+1,sizeof *events);
+	events = calloc(max_ID+1+NEW_EVENT,sizeof *events);
 	Assert(NULL != events,"Error allocating space for all events");
 
 	iterate_directory(data_dir,filename_new_event);
@@ -180,6 +205,13 @@ struct tm string_to_time(const char *string)
 
 status destructor()
 {
+	for(int i=1;i<=max_ID;++i) {
+		if(have_ID[i]) {
+			free(events[i].description);
+			free(events[i].skipped_dates);
+		}
+	}
+
 	free(events);
 }
 
@@ -193,7 +225,7 @@ status init(const char *data_dir)
 	load_events(data_dir);
 
 	for(int i=1;i<=max_ID;++i) {
-		if(have_ID == 0) {
+		if(have_ID[i] == 0) {
 			first_free_ID = i;
 			break;
 		}
@@ -252,6 +284,32 @@ void* print_event_short(void *e)
 
 void* print_event_long(void *e)
 {
+	event ev = *(event*)e;
+	char start_date_str[DATE_SIZE_MAX];
+	char end_date_str[DATE_SIZE_MAX];
+
+	char repeat_mode = '0';
+
+	strftime(start_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.start_date);
+	strftime(end_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.end_date);
+
+	switch(ev.repeat_mode) {
+		case 1: repeat_mode = 'd'; break;
+		case 2: repeat_mode = 'w'; break;
+		case 3: repeat_mode = 'm'; break;
+		case 4: repeat_mode = 'y'; break;
+	}
+
+	printf("(%u) [%s|%s] [%hd|%hd] [%c|%d] %s\n",
+		ev.event_id,
+		start_date_str,
+		end_date_str,
+		ev.start_time,
+		ev.end_time,
+		repeat_mode,
+		ev.repeat_frequency,
+		ev.description);
+
 }
 
 void* set_max_ID(void *arg)
