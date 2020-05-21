@@ -67,16 +67,17 @@ int main()
 	init(DATA_DIR);
 	iterate_events(print_event_short);
 
+	destructor();
 	return 0;
 }
 
 status load_events(const char *data_dir)
 {
-	Assert(-1 != chdir(DATA_DIR),"Error changing directory");
-	events = calloc(max_ID,sizeof *events);
+	Assert(-1 != chdir(data_dir),"Error changing directory");
+	events = calloc(max_ID+1,sizeof *events);
 	Assert(NULL != events,"Error allocating space for all events");
 
-	iterate_directory(DATA_DIR,filename_new_event);
+	iterate_directory(data_dir,filename_new_event);
 	return 0;
 }
 
@@ -113,12 +114,12 @@ void* filename_new_event(void *arg)
 
 	// Start time
 	tmp = lineread(event_file);
-	sscanf(tmp,"%h",&(new_event.start_time));
+	sscanf(tmp,"%hd",&(new_event.start_time));
 	free(tmp);
 
 	// End time
 	tmp = lineread(event_file);
-	sscanf(tmp,"%h",&(new_event.end_time));
+	sscanf(tmp,"%hd",&(new_event.end_time));
 	free(tmp);
 
 	// Repeat mode
@@ -153,7 +154,7 @@ void* filename_new_event(void *arg)
 	events[event_id] = new_event;
 	have_ID[event_id] = 1;
 
-	//fclose(event_file);
+	Assert(-1 != fclose(event_file),"Error closing file");
 }
 
 char* lineread(FILE *stream)
@@ -185,11 +186,9 @@ status destructor()
 status init(const char *data_dir)
 {
 	iterate_directory(data_dir,set_max_ID);
-	printf("%u\n",max_ID);
 
 	have_ID = calloc(max_ID+1,sizeof *have_ID);
 	memset(have_ID,0,max_ID+1);
-
 
 	load_events(data_dir);
 
@@ -223,6 +222,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 			(func)(filename);
 		}
 
+
 	}
 
 	Assert(0 == errno,"Error reading directory");
@@ -233,7 +233,9 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 status iterate_events(void* (*func)(void*))
 {
 	for(int i=0;i<max_ID;++i) {
-		printf("%d\n",have_ID[i]);
+		if(have_ID[i]) {
+			(func)(events+i);
+		}
 	}
 }
 
@@ -241,11 +243,11 @@ void* print_event_short(void *e)
 {
 	event ev = *(event*)e;
 
-	printf("(%u) [%04d] -> [%04d]\n",
+	printf("(%u) [%04hd] -> [%04hd] %s\n",
 		ev.event_id,
 		ev.start_time,
-		ev.end_time);
-		//ev.description);
+		ev.end_time,
+		ev.description);
 }
 
 void* print_event_long(void *e)
