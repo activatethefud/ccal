@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <math.h>
 
 #define DATE_FMT "%d/%m/%Y"
 #define DATA_DIR "/home/nikola/.config/ccal/events"
@@ -18,6 +19,8 @@
 #define DEBUG(msg) fprintf(stderr,"%s\n",msg)
 #define DATE_SIZE_MAX (15)
 #define NEW_EVENT (1)
+#define HOURS(x) (x)/100
+#define MINUTES(x) (x)%100
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -34,10 +37,8 @@ typedef char status;
 typedef struct Event {
 	unsigned event_id;
 	char *description;
-	struct tm start_date;
-	struct tm end_date;
-	short int start_time;
-	short int end_time;
+	struct tm start_time;
+	struct tm end_time;
 	small_int repeat_mode;
 	small_int repeat_frequency;
 	unsigned num_of_skipped_dates;
@@ -63,12 +64,28 @@ void* print_event_short(void *e);
 void* print_event_long(void *e);
 void* set_max_ID(void *arg);
 event new_event();
+status delete_event(unsigned id_to_delete);
 
 int main(int argc, char **argv)
 {
 	init(DATA_DIR);
 
+	iterate_events(print_event_long);
+
 	destructor();
+	return 0;
+}
+
+status delete_event(unsigned id_to_delete)
+{
+	Assert(-1 != chdir(DATA_DIR),"Error changing directoy");
+
+	int txt_len = 5;
+	
+	char filename[ilogb(log10(id_to_delete))+1 + txt_len];
+	sprintf(filename,"%u.txt",id_to_delete);
+
+	puts(filename);
 	return 0;
 }
 
@@ -128,23 +145,29 @@ void* filename_new_event(void *arg)
 
 	// Start date
 	tmp = lineread(event_file);
-	new_event.start_date = string_to_time(tmp);
+	new_event.start_time = string_to_time(tmp);
 	free(tmp);
 
 	// End date
 
 	tmp = lineread(event_file);
-	new_event.end_date = string_to_time(tmp);
+	new_event.end_time = string_to_time(tmp);
 	free(tmp);
 
 	// Start time
 	tmp = lineread(event_file);
-	sscanf(tmp,"%hd",&(new_event.start_time));
+	short int start_time;
+	sscanf(tmp,"%hd",&start_time);
+	new_event.start_time.tm_hour = HOURS(start_time);
+	new_event.start_time.tm_min = MINUTES(start_time);
 	free(tmp);
 
 	// End time
 	tmp = lineread(event_file);
-	sscanf(tmp,"%hd",&(new_event.end_time));
+	short int end_time;
+	sscanf(tmp,"%hd",&end_time);
+	new_event.end_time.tm_hour = HOURS(end_time);
+	new_event.end_time.tm_min = MINUTES(end_time);
 	free(tmp);
 
 	// Repeat mode
@@ -275,10 +298,12 @@ void* print_event_short(void *e)
 {
 	event ev = *(event*)e;
 
-	printf("(%u) [%04hd] -> [%04hd] %s\n",
+	printf("(%u) [%02d:%02d] -> [%02d:%02d] %s\n",
 		ev.event_id,
-		ev.start_time,
-		ev.end_time,
+		ev.start_time.tm_hour,
+		ev.start_time.tm_min,
+		ev.end_time.tm_hour,
+		ev.end_time.tm_min,
 		ev.description);
 }
 
@@ -290,8 +315,8 @@ void* print_event_long(void *e)
 
 	char repeat_mode = '0';
 
-	strftime(start_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.start_date);
-	strftime(end_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.end_date);
+	strftime(start_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.start_time);
+	strftime(end_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.end_time);
 
 	switch(ev.repeat_mode) {
 		case 1: repeat_mode = 'd'; break;
@@ -300,12 +325,14 @@ void* print_event_long(void *e)
 		case 4: repeat_mode = 'y'; break;
 	}
 
-	printf("(%u) [%s|%s] [%hd|%hd] [%c|%d] %s\n",
+	printf("(%u) [%s|%s] [%02d:%02d|%02d:%02d] [%c|%d] %s\n",
 		ev.event_id,
 		start_date_str,
 		end_date_str,
-		ev.start_time,
-		ev.end_time,
+		ev.start_time.tm_hour,
+		ev.start_time.tm_min,
+		ev.end_time.tm_hour,
+		ev.end_time.tm_min,
 		repeat_mode,
 		ev.repeat_frequency,
 		ev.description);
