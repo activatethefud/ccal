@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -10,6 +11,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <math.h>
+#include <getopt.h>
 
 #define DATE_FMT "%d/%m/%Y"
 #define DATA_DIR "/home/nikola/.config/ccal/events"
@@ -21,6 +23,8 @@
 #define NEW_EVENT (1)
 #define HOURS(x) (x)/100
 #define MINUTES(x) (x)%100
+
+#define GETOPT_FMT "nd:p"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -55,7 +59,7 @@ event* events;
 status iterate_directory(const char *dirname,void* (*func)(void*));
 status init(const char *data_dir);
 status destructor();
-status event_destructor(event *e);
+void* event_destructor(void *e);
 status load_events(const char *data_dir);
 void* filename_new_event(void *arg);
 char* lineread(FILE *stream);
@@ -70,6 +74,7 @@ status validate_time(int time);
 status validate_chrono_order(struct tm *time1, struct tm *time2);
 double tm_difftime(struct tm *time1, struct tm *time2);
 status save_event(event *e);
+void print_usage();
 
 void print_tm(struct tm *time)
 {
@@ -86,25 +91,101 @@ int main(int argc, char **argv)
 {
 	init(DATA_DIR);
 
-	event new = new_event();
-	save_event(&new);
-	event_destructor(&new);
+	int new_event_flag = 0;
+	int print_flag = 0;
+	int delete_flag = 0;
+	int delete_arg = 0;
+
+	int long_opt_index;
+	int option;
+
+	struct option long_options[] = {
+
+		{ "new", no_argument, &new_event_flag, 1 },
+		{ "print", no_argument, &print_flag, 1 },
+		{ "delete", required_argument, &delete_flag, 1 },
+		{ 0, 0, 0, 0 }
+	};
+
+	while(-1 != (option = getopt_long(argc,argv,GETOPT_FMT,long_options,&long_opt_index))) {
+
+		// Long option found
+		if(option == 0) {
+			switch(long_opt_index) {
+				case 2:
+					delete_arg = atoi(optarg);
+					break;
+			}
+		}
+
+		else {
+			switch(option) {
+
+				case 'n':
+					new_event_flag = 1;
+					break;
+				case 'p':
+					print_flag =1;
+					break;
+				case 'd':
+					delete_arg = atoi(optarg);
+					delete_flag = 1;
+					break;
+			}
+		}
+	}
+
+	if(delete_flag) {
+		puts("First");
+	}
+	else if(new_event_flag) {
+		event new = new_event();
+		save_event(&new);
+		event_destructor(&new);
+	}
+	else if(print_flag) {
+		iterate_events(print_event_long);
+	}
+	else {
+		print_usage();
+	}
+
+
 
 	destructor();
 	return 0;
 }
 
-status event_destructor(event *e)
+void print_usage()
 {
-	free(e->description);
-	free(e->skipped_dates);
+	printf("Usage:\n"
+		"    -n --new - Add new event\n"
+		"    -p - Print all events\n"
+		"    -d <id> - Delete event with ID <id>\n"
+		);
+}
+
+void* event_destructor(void *e)
+{
+	event* ev = (event*)e;
+	free(ev->description);
+
+	if(ev->num_of_skipped_dates > 0) {
+		free(ev->skipped_dates);
+	}
 }
 
 status save_event(event *e)
 {
 	int txt_len = 5;
-	
-	char filename[ilogb(log10(e->event_id))+1 + txt_len];
+
+	char *filename = calloc(
+		ilogb(log10(max_ID+1))+1 + txt_len,
+		sizeof *filename
+		);
+
+	Assert(NULL != filename,"Error allocating space for file name");
+
 	sprintf(filename,"%u.txt",e->event_id);
 
 	char start_date[DATE_SIZE_MAX];
@@ -117,23 +198,26 @@ status save_event(event *e)
 	FILE *output_file = fopen(filename,"w");
 	Assert(NULL != output_file,"Error opening file for writing");
 
-	//fprintf(output_file,"%u\n%s\n%s\n%d%d\n%d%d\n%hd\n%hd\n%u\n",
-	//	e->event_id,
-	//	start_date,
-	//	end_date,
-	//	e->start_time.tm_hour,
-	//	e->end_time.tm_min,
-	//	e->end_time.tm_hour,
-	//	e->end_time.tm_min,
-	//	e->num_of_skipped_dates);
+	fprintf(output_file,"%u\n%s\n%s\n%s\n%d%02d\n%d%02d\n%hd\n%hd\n%u\n",
+		e->event_id,
+		e->description,
+		start_date,
+		end_date,
+		e->start_time.tm_hour,
+		e->start_time.tm_min,
+		e->end_time.tm_hour,
+		e->end_time.tm_min,
+		e->repeat_mode,
+		e->repeat_frequency,
+		e->num_of_skipped_dates);
 	
-	//for(int i=0;i<e->num_of_skipped_dates;++i) {
-	//	strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&(e->skipped_dates[i]));
-
-	//	fprintf(output_file,"%s\n",tmp);
-	//}
+	for(int i=0;i<e->num_of_skipped_dates;++i) {
+		strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&(e->skipped_dates[i]));
+		fprintf(output_file,"%s\n",tmp);
+	}
 
 	fclose(output_file);
+	free(filename);
 	return 0;
 }
 
@@ -166,7 +250,7 @@ status delete_event(unsigned id_to_delete)
 	char filename[ilogb(log10(id_to_delete))+1 + txt_len];
 	sprintf(filename,"%u.txt",id_to_delete);
 
-	puts(filename);
+	Assert(-1 != unlink(filename),"Error while removing event file");
 	return 0;
 }
 
@@ -272,6 +356,8 @@ event new_event()
 		new.repeat_frequency = abs(atoi(tmp));
 	}
 	free(tmp);
+
+	new.num_of_skipped_dates = 0;
 
 	return new;
 }
@@ -395,12 +481,7 @@ struct tm string_to_time(const char *string)
 
 status destructor()
 {
-	for(int i=1;i<=max_ID;++i) {
-		if(have_ID[i]) {
-			event_destructor(events+i);
-		}
-	}
-
+	iterate_events(event_destructor);
 	free(events);
 }
 
