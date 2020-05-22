@@ -55,6 +55,7 @@ event* events;
 status iterate_directory(const char *dirname,void* (*func)(void*));
 status init(const char *data_dir);
 status destructor();
+status event_destructor(event *e);
 status load_events(const char *data_dir);
 void* filename_new_event(void *arg);
 char* lineread(FILE *stream);
@@ -65,21 +66,101 @@ void* print_event_long(void *e);
 void* set_max_ID(void *arg);
 event new_event();
 status delete_event(unsigned id_to_delete);
+status validate_time(int time);
+status validate_chrono_order(struct tm *time1, struct tm *time2);
+double tm_difftime(struct tm *time1, struct tm *time2);
+status save_event(event *e);
+
+void print_tm(struct tm *time)
+{
+	printf("SEC: %d\nMIN: %d\nHOUR: %d\nDAY: %d\nMON: %d\nYEAR: %d\n\n",
+	time->tm_sec,
+	time->tm_min,
+	time->tm_hour,
+	time->tm_mday,
+	time->tm_mon,
+	time->tm_year);
+}
 
 int main(int argc, char **argv)
 {
 	init(DATA_DIR);
 
-	iterate_events(print_event_long);
+	event new = new_event();
+	save_event(&new);
+	event_destructor(&new);
 
 	destructor();
 	return 0;
 }
 
+status event_destructor(event *e)
+{
+	free(e->description);
+	free(e->skipped_dates);
+}
+
+status save_event(event *e)
+{
+	int txt_len = 5;
+	
+	char filename[ilogb(log10(e->event_id))+1 + txt_len];
+	sprintf(filename,"%u.txt",e->event_id);
+
+	char start_date[DATE_SIZE_MAX];
+	char end_date[DATE_SIZE_MAX];
+	char tmp[DATE_SIZE_MAX];
+
+	strftime(start_date,DATE_SIZE_MAX,DATE_FMT,&(e->start_time));
+	strftime(end_date,DATE_SIZE_MAX,DATE_FMT,&(e->end_time));
+
+	FILE *output_file = fopen(filename,"w");
+	Assert(NULL != output_file,"Error opening file for writing");
+
+	//fprintf(output_file,"%u\n%s\n%s\n%d%d\n%d%d\n%hd\n%hd\n%u\n",
+	//	e->event_id,
+	//	start_date,
+	//	end_date,
+	//	e->start_time.tm_hour,
+	//	e->end_time.tm_min,
+	//	e->end_time.tm_hour,
+	//	e->end_time.tm_min,
+	//	e->num_of_skipped_dates);
+	
+	//for(int i=0;i<e->num_of_skipped_dates;++i) {
+	//	strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&(e->skipped_dates[i]));
+
+	//	fprintf(output_file,"%s\n",tmp);
+	//}
+
+	fclose(output_file);
+	return 0;
+}
+
+status validate_chrono_order(struct tm *time1, struct tm *time2)
+{
+	time1->tm_sec = 0;
+	time1->tm_isdst = 1;
+
+	time2->tm_sec = 0;
+	time2->tm_isdst = 1;
+
+	if(tm_difftime(time1,time2) <= 0) {
+		return 0;
+	}
+	return -1;
+}
+
+double tm_difftime(struct tm *time1, struct tm *time2)
+{
+	return difftime(
+		mktime(time1),
+		mktime(time2)
+	);
+}
+
 status delete_event(unsigned id_to_delete)
 {
-	Assert(-1 != chdir(DATA_DIR),"Error changing directoy");
-
 	int txt_len = 5;
 	
 	char filename[ilogb(log10(id_to_delete))+1 + txt_len];
@@ -89,33 +170,114 @@ status delete_event(unsigned id_to_delete)
 	return 0;
 }
 
+status validate_time(int time)
+{
+	if(HOURS(time) <= 23 && HOURS(time) >= 0 && MINUTES(time) <= 59 && MINUTES(time) >= 0) {
+		return 0;
+	}
+
+	return -1;
+}
+
 event new_event()
 {	
 	event new;
-	//unsigned event_id;
-	//char *description;
-	//struct tm start_date;
-	//struct tm end_date;
-	//short int start_time;
-	//short int end_time;
-	//small_int repeat_mode;
-	//small_int repeat_frequency;
-	//unsigned num_of_skipped_dates;
-	//struct tm *skipped_dates;
+	char *tmp;
 
+	// ID
 	new.event_id = first_free_ID;
+
+	// Description
 	printf("Event description: ");
 	new.description = lineread(stdin);
 
-	printf("Enter date: ");
-	char *start_date = lineread(stdin);
-	//osAssert(NULL != strptime(start_date,
+	Assert('\0' != new.description[0],"Description must not be empty");
 
+	// Start date
+	printf("Start date: ");
+	tmp = lineread(stdin);
+	Assert(NULL != strptime(tmp,DATE_FMT,&(new.start_time)),"Error parsing start date");
+	free(tmp);
+
+	// End date
+	printf("End date: ");
+	tmp = lineread(stdin);
+
+	if(tmp[0] == '\0') {
+		new.end_time = new.start_time;
+	}
+	else {
+		Assert(NULL != strptime(tmp,DATE_FMT,&(new.end_time)),"Error parsing end date");
+	}
+	free(tmp);
+
+	// Start time
+	printf("Start time: ");
+	tmp = lineread(stdin);
+
+	if(tmp[0] == '\0') {
+		new.start_time.tm_hour = 0;
+		new.start_time.tm_min = 0;
+	}
+	else {
+		int time = atoi(tmp);
+		Assert(-1 != validate_time(time),
+			"Error validating start time");
+		new.start_time.tm_hour = HOURS(time);
+		new.start_time.tm_min = MINUTES(time);
+	}
+	free(tmp);
+
+	// End time
+	printf("End time: ");
+	tmp = lineread(stdin);
+
+	if(tmp[0] == '\0') {
+		new.end_time.tm_hour = 23;
+		new.end_time.tm_min = 59;
+	}
+	else {
+		int time = atoi(tmp);
+		Assert(-1 != validate_time(time),
+			"Error validating end time");
+		new.end_time.tm_hour = HOURS(time);
+		new.end_time.tm_min = MINUTES(time);
+	}
+	free(tmp);
+
+	Assert(-1 != validate_chrono_order(&new.start_time,&new.end_time),
+		"End time before start time error");
+
+	// Repeat mode
+	printf("Repeat [n/0|d/1|m/2|w/3|y/4]: ");
+	tmp = lineread(stdin);
+
+	if(tmp[0] == '\0') {
+		new.repeat_mode = 0;
+	}
+	else {
+		new.repeat_mode = abs(atoi(tmp))%5;
+	}
+
+	free(tmp);
+
+	// Repeat frequency
+	printf("Repeat frequency: ");
+	tmp = lineread(stdin);
+
+	if(tmp[0] == '\0') {
+		new.repeat_frequency = 0;
+	}
+	else {
+		new.repeat_frequency = abs(atoi(tmp));
+	}
+	free(tmp);
+
+	return new;
 }
 
 status load_events(const char *data_dir)
 {
-	Assert(-1 != chdir(data_dir),"Error changing directory");
 	events = calloc(max_ID+1+NEW_EVENT,sizeof *events);
 	Assert(NULL != events,"Error allocating space for all events");
 
@@ -170,6 +332,9 @@ void* filename_new_event(void *arg)
 	new_event.end_time.tm_min = MINUTES(end_time);
 	free(tmp);
 
+	Assert(-1 != validate_chrono_order(&new_event.start_time,&new_event.end_time),
+		"End time before start time");
+
 	// Repeat mode
 	tmp = lineread(event_file);
 	sscanf(tmp,"%d",&(new_event.repeat_mode));
@@ -194,6 +359,8 @@ void* filename_new_event(void *arg)
 	for(int i=0;i<new_event.num_of_skipped_dates;++i) {
 		tmp = lineread(event_file);
 		new_event.skipped_dates[i] = string_to_time(tmp);
+		new_event.skipped_dates[i].tm_sec = 0;
+		new_event.skipped_dates[i].tm_isdst = 1;
 		free(tmp);
 	}
 
@@ -230,8 +397,7 @@ status destructor()
 {
 	for(int i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
-			free(events[i].description);
-			free(events[i].skipped_dates);
+			event_destructor(events+i);
 		}
 	}
 
@@ -240,6 +406,12 @@ status destructor()
 
 status init(const char *data_dir)
 {
+	// Set timezone from system timezone
+	tzset();
+	
+	// Change working directory to data_dir
+	Assert(-1 != chdir(data_dir),"Error changing directory");
+
 	iterate_directory(data_dir,set_max_ID);
 
 	have_ID = calloc(max_ID+1,sizeof *have_ID);
