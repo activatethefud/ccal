@@ -23,8 +23,9 @@
 #define NEW_EVENT (1)
 #define HOURS(x) (x)/100
 #define MINUTES(x) (x)%100
+#define LOG_SAFETY (2)
 
-#define GETOPT_FMT "nd:p"
+#define GETOPT_FMT "nd:pt"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -38,7 +39,7 @@ void Error(const bool cond, const char *msg, const char *file, const int line)
 typedef char small_int;
 typedef char status;
 
-typedef struct Event {
+typedef struct {
 	unsigned event_id;
 	char *description;
 	struct tm start_time;
@@ -48,6 +49,14 @@ typedef struct Event {
 	unsigned num_of_skipped_dates;
 	struct tm *skipped_dates;
 } event;
+
+typedef enum {
+	none,
+	daily,
+	weekly,
+	monthly,
+	yearly
+} repeat_t, shift_t;
 
 int max(int a, int b) { return a > b ? a : b; } 
 
@@ -62,7 +71,7 @@ status destructor();
 void* event_destructor(void *e);
 status load_events(const char *data_dir);
 void* filename_new_event(void *arg);
-char* lineread(FILE *stream);
+char* lineread(FILE *stream,const char *prompt);
 struct tm string_to_time(const char *string);
 status iterate_events(void* (*func)(void*));
 void* print_event_short(void *e);
@@ -75,6 +84,9 @@ status validate_chrono_order(struct tm *time1, struct tm *time2);
 double tm_difftime(struct tm *time1, struct tm *time2);
 status save_event(event *e);
 void print_usage();
+time_t shift_time(struct tm *time,shift_t shift,int by_amount);
+bool event_on_date(const event *e,struct tm date);
+bool event_is_skiped(const event *e,struct tm date);
 
 void print_tm(struct tm *time)
 {
@@ -95,6 +107,7 @@ int main(int argc, char **argv)
 	int print_flag = 0;
 	int delete_flag = 0;
 	int delete_arg = 0;
+	int test_flag = 0;
 
 	int long_opt_index;
 	int option;
@@ -131,12 +144,20 @@ int main(int argc, char **argv)
 					delete_arg = atoi(optarg);
 					delete_flag = 1;
 					break;
+				case 't':
+					test_flag = 1;
+					break;
 			}
 		}
 	}
 
-	if(delete_flag) {
-		puts("First");
+	if(test_flag) {
+		event new = new_event();
+
+		printf("%d\n",event_on_date(&new,string_to_time(lineread(stdin,"Enter query date: "))));
+	}
+	else if(delete_flag) {
+		delete_event(delete_arg);
 	}
 	else if(new_event_flag) {
 		event new = new_event();
@@ -154,6 +175,41 @@ int main(int argc, char **argv)
 
 	destructor();
 	return 0;
+}
+
+#define DAY_SECS (3600*24)
+
+bool event_on_date(const event *e,struct tm date)
+{
+	struct tm date_day_after = date;
+	shift_time(&date_day_after,1,1);
+
+	return false;
+}
+
+time_t shift_time(struct tm *time,shift_t shift,int by_amount)
+{
+	switch(shift) {
+		case daily:
+			time->tm_mday += by_amount;
+			break;
+		case weekly:
+			time->tm_mday += 7 * by_amount;
+			break;
+		case monthly:
+			time->tm_mon += by_amount;
+			break;
+		case yearly:
+			time->tm_year += by_amount;
+			break;
+		default:
+			Assert(false,"Bad shift option");
+	}
+
+	time_t shifted_Epoch;
+	Assert(-1 != (shifted_Epoch = mktime(time)),"Error shifting time");
+
+	return shifted_Epoch;
 }
 
 void print_usage()
@@ -180,7 +236,7 @@ status save_event(event *e)
 	int txt_len = 5;
 
 	char *filename = calloc(
-		ilogb(log10(max_ID+1))+1 + txt_len,
+		ilogb(log10(e->event_id + LOG_SAFETY))+1 + txt_len,
 		sizeof *filename
 		);
 
@@ -247,7 +303,7 @@ status delete_event(unsigned id_to_delete)
 {
 	int txt_len = 5;
 	
-	char filename[ilogb(log10(id_to_delete))+1 + txt_len];
+	char filename[ilogb(log10(id_to_delete + LOG_SAFETY))+1 + txt_len];
 	sprintf(filename,"%u.txt",id_to_delete);
 
 	Assert(-1 != unlink(filename),"Error while removing event file");
@@ -272,20 +328,17 @@ event new_event()
 	new.event_id = first_free_ID;
 
 	// Description
-	printf("Event description: ");
-	new.description = lineread(stdin);
+	new.description = lineread(stdin,"Event description: ");
 
 	Assert('\0' != new.description[0],"Description must not be empty");
 
 	// Start date
-	printf("Start date: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"Start date: ");
 	Assert(NULL != strptime(tmp,DATE_FMT,&(new.start_time)),"Error parsing start date");
 	free(tmp);
 
 	// End date
-	printf("End date: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"End date: ");
 
 	if(tmp[0] == '\0') {
 		new.end_time = new.start_time;
@@ -296,8 +349,7 @@ event new_event()
 	free(tmp);
 
 	// Start time
-	printf("Start time: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"Start time: ");
 
 	if(tmp[0] == '\0') {
 		new.start_time.tm_hour = 0;
@@ -313,8 +365,7 @@ event new_event()
 	free(tmp);
 
 	// End time
-	printf("End time: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"End time: ");
 
 	if(tmp[0] == '\0') {
 		new.end_time.tm_hour = 23;
@@ -333,8 +384,7 @@ event new_event()
 		"End time before start time error");
 
 	// Repeat mode
-	printf("Repeat [n/0|d/1|m/2|w/3|y/4]: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"Repeat [n/0|d/1|w/2|m/3|y/4]: ");
 
 	if(tmp[0] == '\0') {
 		new.repeat_mode = 0;
@@ -346,8 +396,7 @@ event new_event()
 	free(tmp);
 
 	// Repeat frequency
-	printf("Repeat frequency: ");
-	tmp = lineread(stdin);
+	tmp = lineread(stdin,"Repeat frequency: ");
 
 	if(tmp[0] == '\0') {
 		new.repeat_frequency = 0;
@@ -384,26 +433,26 @@ void* filename_new_event(void *arg)
 	Assert(NULL != event_file,"Error opening event file.");
 
 	// ID
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	sscanf(tmp,"%u",&(new_event.event_id));
 	free(tmp);
 
 	// Description
-	new_event.description = lineread(event_file);
+	new_event.description = lineread(event_file,NULL);
 
 	// Start date
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	new_event.start_time = string_to_time(tmp);
 	free(tmp);
 
 	// End date
 
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	new_event.end_time = string_to_time(tmp);
 	free(tmp);
 
 	// Start time
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	short int start_time;
 	sscanf(tmp,"%hd",&start_time);
 	new_event.start_time.tm_hour = HOURS(start_time);
@@ -411,7 +460,7 @@ void* filename_new_event(void *arg)
 	free(tmp);
 
 	// End time
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	short int end_time;
 	sscanf(tmp,"%hd",&end_time);
 	new_event.end_time.tm_hour = HOURS(end_time);
@@ -422,17 +471,17 @@ void* filename_new_event(void *arg)
 		"End time before start time");
 
 	// Repeat mode
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	sscanf(tmp,"%d",&(new_event.repeat_mode));
 	free(tmp);
 
 	// Repeat frequency
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	sscanf(tmp,"%d",&(new_event.repeat_frequency));
 	free(tmp);
 
 	// Skipped dates count
-	tmp = lineread(event_file);
+	tmp = lineread(event_file,NULL);
 	sscanf(tmp,"%u",&(new_event.num_of_skipped_dates));
 	free(tmp);
 
@@ -443,7 +492,7 @@ void* filename_new_event(void *arg)
 	);
 
 	for(int i=0;i<new_event.num_of_skipped_dates;++i) {
-		tmp = lineread(event_file);
+		tmp = lineread(event_file,NULL);
 		new_event.skipped_dates[i] = string_to_time(tmp);
 		new_event.skipped_dates[i].tm_sec = 0;
 		new_event.skipped_dates[i].tm_isdst = 1;
@@ -458,8 +507,12 @@ void* filename_new_event(void *arg)
 	Assert(-1 != fclose(event_file),"Error closing file");
 }
 
-char* lineread(FILE *stream)
+char* lineread(FILE *stream,const char *prompt)
 {
+	if(NULL != prompt) {
+		printf(prompt);
+	}
+
 	char *line = NULL;
 	size_t bytes_allocated = 0;
 	ssize_t bytes_read;
@@ -476,6 +529,8 @@ struct tm string_to_time(const char *string)
 {
 	struct tm time;
 	strptime(string,DATE_FMT,&time);
+	time.tm_sec = 0;
+	time.tm_isdst = 1;
 	return time;
 }
 
@@ -578,7 +633,7 @@ void* print_event_long(void *e)
 		case 4: repeat_mode = 'y'; break;
 	}
 
-	printf("(%u) [%s|%s] [%02d:%02d|%02d:%02d] [%c|%d] %s\n",
+	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%d] %s\n",
 		ev.event_id,
 		start_date_str,
 		end_date_str,
