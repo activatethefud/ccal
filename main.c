@@ -39,17 +39,6 @@ void Error(const bool cond, const char *msg, const char *file, const int line)
 typedef char small_int;
 typedef char status;
 
-typedef struct {
-	unsigned event_id;
-	char *description;
-	struct tm start_time;
-	struct tm end_time;
-	small_int repeat_mode;
-	small_int repeat_frequency;
-	unsigned num_of_skipped_dates;
-	struct tm *skipped_dates;
-} event;
-
 typedef enum {
 	none,
 	daily,
@@ -57,6 +46,18 @@ typedef enum {
 	monthly,
 	yearly
 } repeat_t, shift_t;
+
+
+typedef struct {
+	unsigned event_id;
+	char *description;
+	struct tm start_time;
+	struct tm end_time;
+	repeat_t repeat_mode;
+	small_int repeat_frequency;
+	unsigned num_of_skipped_dates;
+	struct tm *skipped_dates;
+} event;
 
 int max(int a, int b) { return a > b ? a : b; } 
 
@@ -85,8 +86,10 @@ double tm_difftime(struct tm *time1, struct tm *time2);
 status save_event(event *e);
 void print_usage();
 time_t shift_time(struct tm *time,shift_t shift,int by_amount);
-bool event_on_date(const event *e,struct tm date);
-bool event_is_skiped(const event *e,struct tm date);
+event* event_on_date(const event *e,struct tm *lower_bound, struct tm *upper_bound);
+bool event_is_skiped(const event *e,struct tm *date);
+struct tm* tm_max(struct tm *time1, struct tm *time2);
+struct tm* tm_min(struct tm *time1, struct tm *time2);
 
 void print_tm(struct tm *time)
 {
@@ -153,8 +156,26 @@ int main(int argc, char **argv)
 
 	if(test_flag) {
 		event new = new_event();
+		char *query_date = lineread(stdin,"Enter date: ");
+		struct tm lower_bound = string_to_time(query_date);
+		struct tm upper_bound = lower_bound;
 
-		printf("%d\n",event_on_date(&new,string_to_time(lineread(stdin,"Enter query date: "))));
+		shift_t shift = daily;
+		shift_time(&upper_bound,shift,1);
+
+		event *q_answer;
+
+		if(NULL != (q_answer = event_on_date(&new,&lower_bound,&upper_bound))) {
+			print_tm(&new.start_time);
+			print_tm(&new.end_time);
+			print_event_long(q_answer);
+			free(q_answer);
+		}
+		else {
+			printf("Event is not on date!\n");
+		}
+
+		free(query_date);
 	}
 	else if(delete_flag) {
 		delete_event(delete_arg);
@@ -177,14 +198,56 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-#define DAY_SECS (3600*24)
-
-bool event_on_date(const event *e,struct tm date)
+bool event_is_skipped(const event *e,struct tm *date)
 {
-	struct tm date_day_after = date;
-	shift_time(&date_day_after,1,1);
+	for(int i=0;i<e->num_of_skipped_dates;++i) {
+
+		if(tm_difftime(e->skipped_dates + i,date) == 0){ 
+			return true;
+		}
+	}
 
 	return false;
+}
+
+struct tm* tm_min(struct tm *time1, struct tm *time2)
+{
+	return tm_difftime(time1,time2) < 0 ? time1 : time2;
+}
+
+struct tm* tm_max(struct tm *time1, struct tm *time2)
+{
+	return tm_difftime(time1,time2) < 0 ? time2 : time1;
+}
+
+#define DAY_SECS (3600*24)
+
+event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_bound)
+{
+	if(event_is_skipped(e,lower_bound)) return NULL;
+
+	event *e_cpy = malloc(sizeof *e);
+	Assert(NULL != memcpy(e_cpy,e,sizeof *e),"Error copying struct");
+
+	while(tm_difftime(&e_cpy->start_time,upper_bound) < 0) {
+
+		// Intersection
+		if(!(tm_difftime(&e_cpy->end_time,lower_bound) < 0)) {
+
+			e_cpy->start_time = *(tm_max(lower_bound,&e_cpy->start_time));
+			e_cpy->end_time = *(tm_min(upper_bound,&e_cpy->end_time));
+			return e_cpy;
+		}
+
+		// Break if event not repeating
+		if(e->repeat_mode == none) break;
+
+		shift_time(&e_cpy->start_time,e->repeat_mode,e->repeat_frequency);
+		shift_time(&e_cpy->end_time,e->repeat_mode,e->repeat_frequency);
+	}
+
+	free(e_cpy);
+	return NULL;
 }
 
 time_t shift_time(struct tm *time,shift_t shift,int by_amount)
@@ -530,6 +593,8 @@ struct tm string_to_time(const char *string)
 	struct tm time;
 	strptime(string,DATE_FMT,&time);
 	time.tm_sec = 0;
+	time.tm_min = 0;
+	time.tm_hour = 0;
 	time.tm_isdst = 1;
 	return time;
 }
