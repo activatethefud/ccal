@@ -26,7 +26,7 @@
 #define LOG_SAFETY (2)
 #define DAY_SECS (3600*24)
 
-#define GETOPT_FMT "nd:pt"
+#define GETOPT_FMT "nd:ptq:"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -79,7 +79,7 @@ void* event_destructor(void *e);
 status load_events(const char *data_dir);
 void* filename_new_event(void *arg);
 char* lineread(FILE *stream,const char *prompt);
-struct tm string_to_time(const char *string);
+struct tm string_to_time(char *string);
 status iterate_events(void* (*func)(void*));
 void* print_event_short(void *e);
 void* print_event_long(void *e);
@@ -98,7 +98,8 @@ struct tm* tm_max(struct tm *time1, struct tm *time2);
 struct tm* tm_min(struct tm *time1, struct tm *time2);
 void answer_query(const struct tm time);
 const char *weekday(int wday);
-float free_time(event **arr,const int arr_size,bool *overlap);
+float free_time(event *arr,const int arr_size,bool *overlap);
+status skip_date(struct tm date_to_skip,event *e);
 
 void print_tm(struct tm *time)
 {
@@ -120,6 +121,9 @@ int main(int argc, char **argv)
 	int delete_flag = 0;
 	int delete_arg = 0;
 	int test_flag = 0;
+	int query_flag = 0;
+
+	char* query_arg;
 
 	int long_opt_index;
 	int option;
@@ -129,6 +133,7 @@ int main(int argc, char **argv)
 		{ "new", no_argument, &new_event_flag, 1 },
 		{ "print", no_argument, &print_flag, 1 },
 		{ "delete", required_argument, &delete_flag, 1 },
+		{ "query", required_argument, &query_flag, 1},
 		{ 0, 0, 0, 0 }
 	};
 
@@ -139,6 +144,9 @@ int main(int argc, char **argv)
 			switch(long_opt_index) {
 				case 2:
 					delete_arg = atoi(optarg);
+					break;
+				case 3:
+					query_arg = optarg;
 					break;
 			}
 		}
@@ -159,11 +167,18 @@ int main(int argc, char **argv)
 				case 't':
 					test_flag = 1;
 					break;
+				case 'q':
+					query_flag = 1;
+					query_arg = optarg;
+					break;
 			}
 		}
 	}
 
-	if(test_flag) {
+	if(query_flag) {
+		answer_query(string_to_time(query_arg));
+	}
+	else if(test_flag) {
 		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
 	}
 	else if(delete_flag) {
@@ -187,6 +202,10 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+status skip_date(struct tm date_to_skip,event *e)
+{
+}
+
 int compare_intervals(const void *i1, const void *i2)
 {
 	double diff = tm_difftime(&((interval_t*)i1)->time,&((interval_t*)i2)->time);
@@ -197,7 +216,7 @@ int compare_intervals(const void *i1, const void *i2)
 }
 
 
-float free_time(event **arr,const int arr_size,bool *overlap)
+float free_time(event *arr,const int arr_size,bool *overlap)
 {
 	int intervals_count = 0;
 	interval_t *intervals = calloc(arr_size,sizeof *intervals);
@@ -205,7 +224,7 @@ float free_time(event **arr,const int arr_size,bool *overlap)
 
 	for(int i=0;i<arr_size;++i) {
 
-		const event *e = arr[i];
+		event *e = arr + i;
 
 		// Skip whole day events
 		if(!((e->start_time.tm_hour == 0 && e->start_time.tm_min == 0) &&
@@ -217,15 +236,29 @@ float free_time(event **arr,const int arr_size,bool *overlap)
 			++intervals_count;
 
 			intervals[intervals_count].time = e->end_time;
-			intervals[intervals_count].opening_closing = 1;
+			intervals[intervals_count].opening_closing = -1;
 			++intervals_count;
 		}
 	}
 
 	qsort(intervals,intervals_count,sizeof *intervals,compare_intervals);
 
+	int prev = 0;
+	for(int i=0;i<intervals_count;++i) {
+
+		if(prev != 0 && i != 0) {
+			freetime -= abs(tm_difftime(&intervals[i].time,&intervals[i-1].time));
+		}
+
+		prev += intervals[i].opening_closing;
+
+		if(prev > 1 || prev < -1) {
+			*overlap = true;
+		}
+	}
+
 	free(intervals);
-	return freetime;
+	return freetime/(3600);
 }
 
 const char *weekday(int wday)
@@ -250,8 +283,8 @@ int compare_chrono_order(const void *e1,const void *e2)
 
 	time_t diff = tm_difftime(&ev1.start_time,&ev2.start_time);
 
-	if(diff < 0) { return 1; }
-	else if (diff > 0) { return -1; }
+	if(diff < 0) { return -1; }
+	else if (diff > 0) { return 1; }
 	return 0;
 }
 
@@ -264,7 +297,7 @@ void answer_query(const struct tm time)
 
 	unsigned arr_allocated = 1;
 	unsigned arr_size = 0;
-	event **arr = calloc(arr_allocated,sizeof *arr);
+	event *arr = calloc(arr_allocated,sizeof *arr);
 
 	Assert(NULL != arr,"Error allocating memory");
 
@@ -275,11 +308,11 @@ void answer_query(const struct tm time)
 			if(NULL != ev) {
 				// Realloc if needed
 				if(arr_size == arr_allocated) {
-					arr_allocated *= 3;
-					Assert(NULL != realloc(arr,arr_allocated * sizeof(*arr)),"Realloc failed");
+					arr_allocated *= 2;
+					Assert(NULL != (arr = realloc(arr,arr_allocated * sizeof(*arr))),"Realloc failed");
 				}
 				
-				arr[arr_size++] = ev;
+				arr[arr_size++] = *ev;
 			}
 		}
 	}
@@ -287,20 +320,24 @@ void answer_query(const struct tm time)
 	qsort(arr,arr_size,sizeof *arr,compare_chrono_order);
 
 	bool events_overlapping = false;
-	printf("%f\n",free_time(arr,arr_size,&events_overlapping));
-
-	assert(0);
+	float freetime = free_time(arr,arr_size,&events_overlapping);
 
 	printf("%s\n",weekday(time.tm_wday));
+	printf("Free time: %.2fh\n",freetime);
+
+	if(events_overlapping) {
+		printf("Events overlapping!\n");
+	}
+
 	for(int i=0;i<arr_size;++i) {
 		print_event_short(arr + i);
 		//print_event_long(arr[i]);
 	}
 
 	// Free memory
-	for(int i = arr_size-1; i >= 0; --i) {
-		free(arr[i]);
-	}
+	//for(int i = arr_size-1; i >= 0; --i) {
+	//	free(arr + i);
+	//}
 	free(arr);
 
 }
@@ -388,7 +425,8 @@ void print_usage()
 	printf("Usage:\n"
 		"    -n --new - Add new event\n"
 		"    -p - Print all events\n"
-		"    -d <id> - Delete event with ID <id>\n"
+		"    -d --delete <id> - Delete event with ID <id>\n"
+		"    -q --query <date> - Query events on <date>\n"
 		);
 }
 
@@ -700,7 +738,7 @@ char* lineread(FILE *stream,const char *prompt)
 	return line;
 }
 
-struct tm string_to_time(const char *string)
+struct tm string_to_time(char *string)
 {
 	struct tm time;
 	strptime(string,DATE_FMT,&time);
