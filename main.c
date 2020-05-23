@@ -26,7 +26,7 @@
 #define LOG_SAFETY (2)
 #define DAY_SECS (3600*24)
 
-#define GETOPT_FMT "nd:ptq:"
+#define GETOPT_FMT "nd:ptq:w:"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -122,8 +122,9 @@ int main(int argc, char **argv)
 	int delete_arg = 0;
 	int test_flag = 0;
 	int query_flag = 0;
+	int week_flag = 0;
 
-	char* query_arg;
+	char* query_arg = NULL;
 
 	int long_opt_index;
 	int option;
@@ -171,12 +172,27 @@ int main(int argc, char **argv)
 					query_flag = 1;
 					query_arg = optarg;
 					break;
+				case 'w':
+					query_arg = optarg;
+					week_flag = 1;
+					break;
 			}
 		}
 	}
 
 	if(query_flag) {
 		answer_query(string_to_time(query_arg));
+	}
+	else if(week_flag) {
+
+		struct tm start_time = string_to_time(query_arg);
+		shift_t shift = daily;
+
+		for(int i=0;i<7;++i) {
+			answer_query(start_time);
+			shift_time(&start_time,shift,1);
+		}
+
 	}
 	else if(test_flag) {
 		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
@@ -219,23 +235,24 @@ int compare_intervals(const void *i1, const void *i2)
 float free_time(event *arr,const int arr_size,bool *overlap)
 {
 	int intervals_count = 0;
-	interval_t *intervals = calloc(arr_size,sizeof *intervals);
+	interval_t *intervals = calloc(arr_size*2,sizeof *intervals);
+	Assert(NULL != intervals,"Calloc failed");
 	float freetime = DAY_SECS;
 
 	for(int i=0;i<arr_size;++i) {
 
-		event *e = arr + i;
+		event e = arr[i];
 
 		// Skip whole day events
-		if(!((e->start_time.tm_hour == 0 && e->start_time.tm_min == 0) &&
-		     ((e->end_time.tm_hour == 23 && e->end_time.tm_min == 59) ||
-		      e->end_time.tm_hour == 0 && e->end_time.tm_min == 0 ))) {
+		if(!((e.start_time.tm_hour == 0 && e.start_time.tm_min == 0) &&
+		     ((e.end_time.tm_hour == 23 && e.end_time.tm_min == 59) ||
+		      e.end_time.tm_hour == 0 && e.end_time.tm_min == 0 ))) {
 
-			intervals[intervals_count].time = e->start_time;
+			intervals[intervals_count].time = e.start_time;
 			intervals[intervals_count].opening_closing = 1;
 			++intervals_count;
 
-			intervals[intervals_count].time = e->end_time;
+			intervals[intervals_count].time = e.end_time;
 			intervals[intervals_count].opening_closing = -1;
 			++intervals_count;
 		}
@@ -297,8 +314,8 @@ void answer_query(const struct tm time)
 
 	unsigned arr_allocated = 1;
 	unsigned arr_size = 0;
-	event *arr = calloc(arr_allocated,sizeof *arr);
 
+	event *arr = calloc(arr_allocated,sizeof *arr);
 	Assert(NULL != arr,"Error allocating memory");
 
 	for(int i=1;i<=max_ID;++i) {
@@ -331,13 +348,10 @@ void answer_query(const struct tm time)
 
 	for(int i=0;i<arr_size;++i) {
 		print_event_short(arr + i);
-		//print_event_long(arr[i]);
 	}
 
-	// Free memory
-	//for(int i = arr_size-1; i >= 0; --i) {
-	//	free(arr + i);
-	//}
+	printf("\n");
+
 	free(arr);
 
 }
