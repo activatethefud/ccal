@@ -24,6 +24,7 @@
 #define HOURS(x) (x)/100
 #define MINUTES(x) (x)%100
 #define LOG_SAFETY (2)
+#define DAY_SECS (3600*24)
 
 #define GETOPT_FMT "nd:pt"
 
@@ -47,6 +48,11 @@ typedef enum {
 	yearly
 } repeat_t, shift_t;
 
+typedef struct {
+	struct tm time;
+	small_int opening_closing;
+} interval_t;
+
 
 typedef struct {
 	unsigned event_id;
@@ -61,8 +67,8 @@ typedef struct {
 
 int max(int a, int b) { return a > b ? a : b; } 
 
-static unsigned max_ID = 1;
-static unsigned first_free_ID = -1;
+static unsigned max_ID = 0;
+static unsigned first_free_ID = 1;
 static small_int *have_ID;
 event* events;
 
@@ -90,6 +96,9 @@ event* event_on_date(const event *e,struct tm *lower_bound, struct tm *upper_bou
 bool event_is_skiped(const event *e,struct tm *date);
 struct tm* tm_max(struct tm *time1, struct tm *time2);
 struct tm* tm_min(struct tm *time1, struct tm *time2);
+void answer_query(const struct tm time);
+const char *weekday(int wday);
+float free_time(event **arr,const int arr_size,bool *overlap);
 
 void print_tm(struct tm *time)
 {
@@ -155,27 +164,7 @@ int main(int argc, char **argv)
 	}
 
 	if(test_flag) {
-		event new = new_event();
-		char *query_date = lineread(stdin,"Enter date: ");
-		struct tm lower_bound = string_to_time(query_date);
-		struct tm upper_bound = lower_bound;
-
-		shift_t shift = daily;
-		shift_time(&upper_bound,shift,1);
-
-		event *q_answer;
-
-		if(NULL != (q_answer = event_on_date(&new,&lower_bound,&upper_bound))) {
-			print_tm(&new.start_time);
-			print_tm(&new.end_time);
-			print_event_long(q_answer);
-			free(q_answer);
-		}
-		else {
-			printf("Event is not on date!\n");
-		}
-
-		free(query_date);
+		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
 	}
 	else if(delete_flag) {
 		delete_event(delete_arg);
@@ -196,6 +185,124 @@ int main(int argc, char **argv)
 
 	destructor();
 	return 0;
+}
+
+int compare_intervals(const void *i1, const void *i2)
+{
+	double diff = tm_difftime(&((interval_t*)i1)->time,&((interval_t*)i2)->time);
+
+	if(diff < 0) { return 1; }
+	else if (diff > 0) { return -1; }
+	return 0;
+}
+
+
+float free_time(event **arr,const int arr_size,bool *overlap)
+{
+	int intervals_count = 0;
+	interval_t *intervals = calloc(arr_size,sizeof *intervals);
+	float freetime = DAY_SECS;
+
+	for(int i=0;i<arr_size;++i) {
+
+		const event *e = arr[i];
+
+		// Skip whole day events
+		if(!((e->start_time.tm_hour == 0 && e->start_time.tm_min == 0) &&
+		     ((e->end_time.tm_hour == 23 && e->end_time.tm_min == 59) ||
+		      e->end_time.tm_hour == 0 && e->end_time.tm_min == 0 ))) {
+
+			intervals[intervals_count].time = e->start_time;
+			intervals[intervals_count].opening_closing = 1;
+			++intervals_count;
+
+			intervals[intervals_count].time = e->end_time;
+			intervals[intervals_count].opening_closing = 1;
+			++intervals_count;
+		}
+	}
+
+	qsort(intervals,intervals_count,sizeof *intervals,compare_intervals);
+
+	free(intervals);
+	return freetime;
+}
+
+const char *weekday(int wday)
+{
+	// Adjust wday because tm_wday starts with 0 -> Sunday
+	switch((wday+6)%7) {
+		case 0: return "Monday";
+		case 1: return "Tuesday";
+		case 2: return "Wednesday";
+		case 3: return "Thursday";
+		case 4: return "Friday";
+		case 5: return "Saturday";
+		case 6: return "Sunday";
+		default: return NULL;
+	}
+}
+
+int compare_chrono_order(const void *e1,const void *e2)
+{
+	event ev1 = *(event*)e1;
+	event ev2 = *(event*)e2;
+
+	time_t diff = tm_difftime(&ev1.start_time,&ev2.start_time);
+
+	if(diff < 0) { return 1; }
+	else if (diff > 0) { return -1; }
+	return 0;
+}
+
+void answer_query(const struct tm time)
+{
+	struct tm lower_bound = time;
+	struct tm upper_bound = lower_bound;
+	shift_t shift = daily;
+	shift_time(&upper_bound,shift,1);
+
+	unsigned arr_allocated = 1;
+	unsigned arr_size = 0;
+	event **arr = calloc(arr_allocated,sizeof *arr);
+
+	Assert(NULL != arr,"Error allocating memory");
+
+	for(int i=1;i<=max_ID;++i) {
+		if(have_ID[i]) {
+			event *ev = event_on_date(events+i,&lower_bound,&upper_bound);
+
+			if(NULL != ev) {
+				// Realloc if needed
+				if(arr_size == arr_allocated) {
+					arr_allocated *= 3;
+					Assert(NULL != realloc(arr,arr_allocated * sizeof(*arr)),"Realloc failed");
+				}
+				
+				arr[arr_size++] = ev;
+			}
+		}
+	}
+
+	qsort(arr,arr_size,sizeof *arr,compare_chrono_order);
+
+	bool events_overlapping = false;
+	printf("%f\n",free_time(arr,arr_size,&events_overlapping));
+
+	assert(0);
+
+	printf("%s\n",weekday(time.tm_wday));
+	for(int i=0;i<arr_size;++i) {
+		print_event_short(arr + i);
+		//print_event_long(arr[i]);
+	}
+
+	// Free memory
+	for(int i = arr_size-1; i >= 0; --i) {
+		free(arr[i]);
+	}
+	free(arr);
+
 }
 
 bool event_is_skipped(const event *e,struct tm *date)
@@ -220,10 +327,10 @@ struct tm* tm_max(struct tm *time1, struct tm *time2)
 	return tm_difftime(time1,time2) < 0 ? time2 : time1;
 }
 
-#define DAY_SECS (3600*24)
 
 event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_bound)
 {
+
 	if(event_is_skipped(e,lower_bound)) return NULL;
 
 	event *e_cpy = malloc(sizeof *e);
@@ -252,6 +359,7 @@ event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_boun
 
 time_t shift_time(struct tm *time,shift_t shift,int by_amount)
 {
+
 	switch(shift) {
 		case daily:
 			time->tm_mday += by_amount;
@@ -343,10 +451,10 @@ status save_event(event *e)
 status validate_chrono_order(struct tm *time1, struct tm *time2)
 {
 	time1->tm_sec = 0;
-	time1->tm_isdst = 1;
+	time1->tm_isdst = -1;
 
 	time2->tm_sec = 0;
-	time2->tm_isdst = 1;
+	time2->tm_isdst = -1;
 
 	if(tm_difftime(time1,time2) <= 0) {
 		return 0;
@@ -443,6 +551,7 @@ event new_event()
 	}
 	free(tmp);
 
+
 	Assert(-1 != validate_chrono_order(&new.start_time,&new.end_time),
 		"End time before start time error");
 
@@ -505,13 +614,13 @@ void* filename_new_event(void *arg)
 
 	// Start date
 	tmp = lineread(event_file,NULL);
-	new_event.start_time = string_to_time(tmp);
+	Assert(NULL != strptime(tmp,DATE_FMT,&(new_event.start_time)),"Error parsing start date");
 	free(tmp);
 
 	// End date
 
 	tmp = lineread(event_file,NULL);
-	new_event.end_time = string_to_time(tmp);
+	Assert(NULL != strptime(tmp,DATE_FMT,&(new_event.end_time)),"Error parsing start date");
 	free(tmp);
 
 	// Start time
@@ -556,9 +665,12 @@ void* filename_new_event(void *arg)
 
 	for(int i=0;i<new_event.num_of_skipped_dates;++i) {
 		tmp = lineread(event_file,NULL);
-		new_event.skipped_dates[i] = string_to_time(tmp);
+		Assert(NULL != strptime(tmp,DATE_FMT,new_event.skipped_dates + i),
+			"Error parsing skipped date");
 		new_event.skipped_dates[i].tm_sec = 0;
-		new_event.skipped_dates[i].tm_isdst = 1;
+		new_event.skipped_dates[i].tm_min = 0;
+		new_event.skipped_dates[i].tm_hour = 0;
+		new_event.skipped_dates[i].tm_isdst = -1;
 		free(tmp);
 	}
 
@@ -595,7 +707,7 @@ struct tm string_to_time(const char *string)
 	time.tm_sec = 0;
 	time.tm_min = 0;
 	time.tm_hour = 0;
-	time.tm_isdst = 1;
+	time.tm_isdst = -1;
 	return time;
 }
 
@@ -627,8 +739,11 @@ status init(const char *data_dir)
 		}
 	}
 
-	if(first_free_ID == -1) {
-		first_free_ID = max_ID+1;
+	if(first_free_ID == 1 && max_ID == 0) {
+		first_free_ID = 1;
+	}
+	else if(first_free_ID == 1 && max_ID != 0) {
+		first_free_ID = max_ID + 1;
 	}
 
 	return 0;
@@ -660,7 +775,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 
 status iterate_events(void* (*func)(void*))
 {
-	for(int i=0;i<max_ID;++i) {
+	for(int i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
 			(func)(events+i);
 		}
