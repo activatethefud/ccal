@@ -100,6 +100,8 @@ void answer_query(const struct tm time);
 const char *weekday(int wday);
 float free_time(event *arr,const int arr_size,bool *overlap);
 status skip_date(struct tm date_to_skip,event *e);
+status skip_event_prompt(unsigned event_id,const char *date);
+status delete_event_prompt(unsigned event_id);
 
 void print_tm(struct tm *time)
 {
@@ -186,17 +188,8 @@ int main(int argc, char **argv)
 
 	if(skip_flag) {
 
-		Assert(have_ID[skip_flag],"Skip ID doesn't exist");
 
-		printf("Skip event ");
-		print_event_long(events+skip_flag);
-		printf("On date %s\n",query_arg);
-
-		char opt;
-		printf("[y/N]?: ");
-		scanf("%c",&opt);
-
-		if(opt == 'y') {
+		if(skip_event_prompt(skip_flag,query_arg)) {
 			skip_date(string_to_time(query_arg),&events[skip_flag]);
 			printf("Date skipped.\n");
 		}
@@ -222,16 +215,8 @@ int main(int argc, char **argv)
 		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
 	}
 	else if(delete_flag) {
-		Assert(have_ID[delete_arg],"Delete argument ID doesn't exist");
 
-		printf("Delete event: ");
-		print_event_long(events + delete_arg);
-		printf("{y/N]?: ");
-
-		char opt;
-		scanf("%c",&opt);
-
-		if(opt == 'y') {
+		if(delete_event_prompt(delete_arg)) {
 			delete_event(delete_arg);
 			printf("Event deleted.\n");
 		}
@@ -255,6 +240,36 @@ int main(int argc, char **argv)
 
 	destructor();
 	return 0;
+}
+
+status delete_event_prompt(unsigned event_id)
+{
+
+		Assert(have_ID[event_id],"Delete argument ID doesn't exist");
+
+		printf("Delete event: ");
+		print_event_long(events + event_id);
+		printf("{y/N]?: ");
+
+		char opt;
+		scanf("%c",&opt);
+
+		return opt == 'y';
+}
+
+status skip_event_prompt(unsigned event_id,const char *date)
+{
+	Assert(have_ID[event_id],"Skip ID doesn't exist");
+
+	printf("Skip event ");
+	print_event_long(events + event_id);
+	printf("On date %s\n",date);
+	                                    
+	char opt;
+	printf("[y/N]?: ");
+	scanf("%c",&opt);
+
+	return opt == 'y';
 }
 
 status skip_date(struct tm date_to_skip,event *e)
