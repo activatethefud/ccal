@@ -1,5 +1,7 @@
 # CCAL - C calendar
 
+Kind of like calcurse, but even simpler. Used only for simple event tracking. No fancy features (yet ;)).
+
 ![Screenshot of ccal's `week` output](example.png)
 
 ```
