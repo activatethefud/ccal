@@ -26,7 +26,7 @@
 #define LOG_SAFETY (2)
 #define DAY_SECS (3600*24)
 
-#define GETOPT_FMT "nd:ptq:w:"
+#define GETOPT_FMT "nd:ptq:w:s:"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -123,6 +123,7 @@ int main(int argc, char **argv)
 	int test_flag = 0;
 	int query_flag = 0;
 	int week_flag = 0;
+	int skip_flag = 0;
 
 	char* query_arg = NULL;
 
@@ -176,11 +177,20 @@ int main(int argc, char **argv)
 					query_arg = optarg;
 					week_flag = 1;
 					break;
+				case 's':
+					skip_flag = atoi(optarg);
+					break;
 			}
 		}
 	}
 
-	if(query_flag) {
+	if(skip_flag) {
+
+		Assert(have_ID[skip_flag],"Skip ID doesn't exist!");
+
+		skip_date(string_to_time(query_arg),&events[skip_flag]);
+	}
+	else if(query_flag && !skip_flag) {
 		answer_query(string_to_time(query_arg));
 	}
 	else if(week_flag) {
@@ -220,6 +230,16 @@ int main(int argc, char **argv)
 
 status skip_date(struct tm date_to_skip,event *e)
 {
+	Assert(0 == delete_event(e->event_id),"Error deleting event");
+
+	e->num_of_skipped_dates++;
+	Assert(NULL != (e->skipped_dates = realloc(e->skipped_dates,e->num_of_skipped_dates * sizeof(*e->skipped_dates))),
+		"Realloc failed");
+
+	e->skipped_dates[e->num_of_skipped_dates-1] = date_to_skip;
+
+	save_event(e);
+	return 0;
 }
 
 int compare_intervals(const void *i1, const void *i2)
@@ -441,6 +461,8 @@ void print_usage()
 		"    -p - Print all events\n"
 		"    -d --delete <id> - Delete event with ID <id>\n"
 		"    -q --query <date> - Query events on <date>\n"
+		"    -w <date> - Print week's worth of events from <date>\n"
+		"    -q --query <date> -s <id> - Skip event with <id> on <date>\n"
 		);
 }
 
@@ -709,6 +731,7 @@ void* filename_new_event(void *arg)
 	sscanf(tmp,"%u",&(new_event.num_of_skipped_dates));
 	free(tmp);
 
+	// LBL
 	// Skipped dates
 	new_event.skipped_dates = calloc(
 		new_event.num_of_skipped_dates,

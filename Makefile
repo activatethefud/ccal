@@ -1,2 +1,9 @@
+ccal: main.o
+	gcc -Wall -Wextra -lm -o ccal main.o
+
 main.o: main.c
-	gcc -o a.out main.c -lm
+
+.PHONY: debug
+
+debug:
+	gcc -Wall -Wextra -g -o a.out main.c -lm
