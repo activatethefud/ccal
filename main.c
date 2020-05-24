@@ -186,9 +186,23 @@ int main(int argc, char **argv)
 
 	if(skip_flag) {
 
-		Assert(have_ID[skip_flag],"Skip ID doesn't exist!");
+		Assert(have_ID[skip_flag],"Skip ID doesn't exist");
 
-		skip_date(string_to_time(query_arg),&events[skip_flag]);
+		printf("Skip event ");
+		print_event_long(events+skip_flag);
+		printf("On date %s\n",query_arg);
+
+		char opt;
+		printf("[y/N]?: ");
+		scanf("%c",&opt);
+
+		if(opt == 'y') {
+			skip_date(string_to_time(query_arg),&events[skip_flag]);
+			printf("Date skipped.\n");
+		}
+		else {
+			printf("Date not skipped.\n");
+		}
 	}
 	else if(query_flag && !skip_flag) {
 		answer_query(string_to_time(query_arg));
@@ -208,7 +222,22 @@ int main(int argc, char **argv)
 		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
 	}
 	else if(delete_flag) {
-		delete_event(delete_arg);
+		Assert(have_ID[delete_arg],"Delete argument ID doesn't exist");
+
+		printf("Delete event: ");
+		print_event_long(events + delete_arg);
+		printf("{y/N]?: ");
+
+		char opt;
+		scanf("%c",&opt);
+
+		if(opt == 'y') {
+			delete_event(delete_arg);
+			printf("Event deleted.\n");
+		}
+		else {
+			printf("Event not deleted.\n");
+		}
 	}
 	else if(new_event_flag) {
 		event new = new_event();
@@ -359,7 +388,10 @@ void answer_query(const struct tm time)
 	bool events_overlapping = false;
 	float freetime = free_time(arr,arr_size,&events_overlapping);
 
-	printf("%s\n",weekday(time.tm_wday));
+	char tmp[DATE_SIZE_MAX];
+	strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&lower_bound);
+
+	printf("%s - %s\n",weekday(time.tm_wday),tmp);
 	printf("Free time: %.2fh\n",freetime);
 
 	if(events_overlapping) {
