@@ -6,4 +6,4 @@ main.o: main.c
 .PHONY: debug
 
 debug:
-	gcc -Wall -Wextra -g -o a.out main.c -lm
+	gcc -g -o a.out main.c -lm

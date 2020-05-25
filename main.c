@@ -93,6 +93,7 @@ status save_event(event *e);
 void print_usage();
 time_t shift_time(struct tm *time,shift_t shift,int by_amount);
 event* event_on_date(const event *e,struct tm *lower_bound, struct tm *upper_bound);
+event* get_events_on_date(const struct tm time,event** arr,int *arr_size);
 bool event_is_skiped(const event *e,struct tm *date);
 struct tm* tm_max(struct tm *time1, struct tm *time2);
 struct tm* tm_min(struct tm *time1, struct tm *time2);
@@ -100,8 +101,9 @@ void answer_query(const struct tm time);
 const char *weekday(int wday);
 float free_time(event *arr,const int arr_size,bool *overlap);
 status skip_date(struct tm date_to_skip,event *e);
-status skip_event_prompt(unsigned event_id,const char *date);
+status skip_date_prompt(unsigned event_id,const char *date);
 status delete_event_prompt(unsigned event_id);
+void clear_date(char *date);
 
 void print_tm(struct tm *time)
 {
@@ -126,6 +128,7 @@ int main(int argc, char **argv)
 	int query_flag = 0;
 	int week_flag = 0;
 	int skip_flag = 0;
+	int clear_date_flag = 0;
 
 	char* query_arg = NULL;
 
@@ -138,6 +141,7 @@ int main(int argc, char **argv)
 		{ "print", no_argument, &print_flag, 1 },
 		{ "delete", required_argument, &delete_flag, 1 },
 		{ "query", required_argument, &query_flag, 1},
+		{ "clear-date", no_argument, &clear_date_flag, 1},
 		{ 0, 0, 0, 0 }
 	};
 
@@ -189,13 +193,16 @@ int main(int argc, char **argv)
 	if(skip_flag) {
 
 
-		if(skip_event_prompt(skip_flag,query_arg)) {
+		if(skip_date_prompt(skip_flag,query_arg)) {
 			skip_date(string_to_time(query_arg),&events[skip_flag]);
 			printf("Date skipped.\n");
 		}
 		else {
 			printf("Date not skipped.\n");
 		}
+	}
+	else if(query_flag && clear_date_flag) {
+		clear_date(query_arg);
 	}
 	else if(query_flag && !skip_flag) {
 		answer_query(string_to_time(query_arg));
@@ -242,6 +249,23 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+void clear_date(char *date)
+{
+	event *arr;
+	int arr_size;
+
+	get_events_on_date(string_to_time(date),&arr,&arr_size);
+
+	for(int i=0;i<arr_size;++i) {
+
+		if(skip_date_prompt(arr[i].event_id,date)) {
+			skip_date(string_to_time(date),arr + i);
+		}
+	}
+
+	free(arr);
+}
+
 status delete_event_prompt(unsigned event_id)
 {
 
@@ -257,7 +281,7 @@ status delete_event_prompt(unsigned event_id)
 		return opt == 'y';
 }
 
-status skip_event_prompt(unsigned event_id,const char *date)
+status skip_date_prompt(unsigned event_id,const char *date)
 {
 	Assert(have_ID[event_id],"Skip ID doesn't exist");
 
@@ -310,7 +334,7 @@ float free_time(event *arr,const int arr_size,bool *overlap)
 		// Skip whole day events
 		if(!((e.start_time.tm_hour == 0 && e.start_time.tm_min == 0) &&
 		     ((e.end_time.tm_hour == 23 && e.end_time.tm_min == 59) ||
-		      e.end_time.tm_hour == 0 && e.end_time.tm_min == 0 ))) {
+		      (e.end_time.tm_hour == 0 && e.end_time.tm_min == 0 )))) {
 
 			intervals[intervals_count].time = e.start_time;
 			intervals[intervals_count].opening_closing = 1;
@@ -328,7 +352,7 @@ float free_time(event *arr,const int arr_size,bool *overlap)
 	for(int i=0;i<intervals_count;++i) {
 
 		if(prev != 0 && i != 0) {
-			freetime -= abs(tm_difftime(&intervals[i].time,&intervals[i-1].time));
+			freetime -= fabs(tm_difftime(&intervals[i].time,&intervals[i-1].time));
 		}
 
 		prev += intervals[i].opening_closing;
@@ -369,36 +393,48 @@ int compare_chrono_order(const void *e1,const void *e2)
 	return 0;
 }
 
-void answer_query(const struct tm time)
+event* get_events_on_date(const struct tm time,event** arr,int *arr_size)
 {
 	struct tm lower_bound = time;
 	struct tm upper_bound = lower_bound;
 	shift_t shift = daily;
 	shift_time(&upper_bound,shift,1);
 
-	unsigned arr_allocated = 1;
-	unsigned arr_size = 0;
+	int arr_allocated = 1;
+	(*arr_size) = 0;
 
-	event *arr = calloc(arr_allocated,sizeof *arr);
-	Assert(NULL != arr,"Error allocating memory");
+	(*arr) = calloc(arr_allocated,sizeof **arr);
+	Assert(NULL != (*arr),"Error allocating memory");
 
-	for(int i=1;i<=max_ID;++i) {
+	for(unsigned i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
 			event *ev = event_on_date(events+i,&lower_bound,&upper_bound);
 
 			if(NULL != ev) {
 				// Realloc if needed
-				if(arr_size == arr_allocated) {
+				if(*arr_size == arr_allocated) {
 					arr_allocated *= 2;
-					Assert(NULL != (arr = realloc(arr,arr_allocated * sizeof(*arr))),"Realloc failed");
+					Assert(NULL != ((*arr) = realloc(arr,arr_allocated * sizeof(**arr))),"Realloc failed");
 				}
 				
-				arr[arr_size++] = *ev;
+				(*arr)[(*arr_size)++] = *ev;
 			}
 		}
 	}
+	
+	qsort(arr,*arr_size,sizeof *arr,compare_chrono_order);
 
-	qsort(arr,arr_size,sizeof *arr,compare_chrono_order);
+	return (*arr);
+}
+
+void answer_query(const struct tm time)
+{
+	struct tm lower_bound = time;
+
+	event *arr;
+	int arr_size;
+
+	get_events_on_date(time,&arr,&arr_size);
 
 	bool events_overlapping = false;
 	float freetime = free_time(arr,arr_size,&events_overlapping);
@@ -419,13 +455,15 @@ void answer_query(const struct tm time)
 
 	printf("\n");
 
+	DEBUG("Ayylmao");
+
 	free(arr);
 
 }
 
 bool event_is_skipped(const event *e,struct tm *date)
 {
-	for(int i=0;i<e->num_of_skipped_dates;++i) {
+	for(unsigned i=0;i<e->num_of_skipped_dates;++i) {
 
 		if(tm_difftime(e->skipped_dates + i,date) == 0){ 
 			return true;
@@ -510,6 +548,7 @@ void print_usage()
 		"    -q --query <date> - Query events on <date>\n"
 		"    -w <date> - Print week's worth of events from <date>\n"
 		"    -q --query <date> -s <id> - Skip event with <id> on <date>\n"
+		"    -q --query <date> --clear-date - Skip all events on <date>\n"
 		);
 }
 
@@ -559,7 +598,7 @@ status save_event(event *e)
 		e->repeat_frequency,
 		e->num_of_skipped_dates);
 	
-	for(int i=0;i<e->num_of_skipped_dates;++i) {
+	for(unsigned i=0;i<e->num_of_skipped_dates;++i) {
 		strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&(e->skipped_dates[i]));
 		fprintf(output_file,"%s\n",tmp);
 	}
@@ -716,8 +755,6 @@ status load_events(const char *data_dir)
 void* filename_new_event(void *arg)
 {
 	char *filename = arg;
-	int ID = atoi(filename);
-
 	char *tmp;
 
 	event new_event;
@@ -785,7 +822,7 @@ void* filename_new_event(void *arg)
 		sizeof *(new_event.skipped_dates)
 	);
 
-	for(int i=0;i<new_event.num_of_skipped_dates;++i) {
+	for(unsigned i=0;i<new_event.num_of_skipped_dates;++i) {
 		tmp = lineread(event_file,NULL);
 		Assert(NULL != strptime(tmp,DATE_FMT,new_event.skipped_dates + i),
 			"Error parsing skipped date");
