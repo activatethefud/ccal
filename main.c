@@ -273,7 +273,7 @@ status delete_event_prompt(unsigned event_id)
 
 		printf("Delete event: ");
 		print_event_long(events + event_id);
-		printf("{y/N]?: ");
+		printf("[y/[N]]?: ");
 
 		char opt;
 		scanf("%c",&opt);
@@ -290,7 +290,7 @@ status skip_date_prompt(unsigned event_id,const char *date)
 	printf("On date %s\n",date);
 	                                    
 	char opt;
-	printf("[y/N]?: ");
+	printf("[y/[N]]?: ");
 	scanf("%c",&opt);
 
 	return opt == 'y';
@@ -414,7 +414,7 @@ event* get_events_on_date(const struct tm time,event** arr,int *arr_size)
 				// Realloc if needed
 				if(*arr_size == arr_allocated) {
 					arr_allocated *= 2;
-					Assert(NULL != ((*arr) = realloc(arr,arr_allocated * sizeof(**arr))),"Realloc failed");
+					Assert(NULL != ((*arr) = realloc((*arr),arr_allocated * sizeof(**arr))),"Realloc failed");
 				}
 				
 				(*arr)[(*arr_size)++] = *ev;
@@ -422,7 +422,7 @@ event* get_events_on_date(const struct tm time,event** arr,int *arr_size)
 		}
 	}
 	
-	qsort(arr,*arr_size,sizeof *arr,compare_chrono_order);
+	qsort((*arr),*arr_size,sizeof **arr,compare_chrono_order);
 
 	return (*arr);
 }
@@ -454,8 +454,6 @@ void answer_query(const struct tm time)
 	}
 
 	printf("\n");
-
-	DEBUG("Ayylmao");
 
 	free(arr);
 
