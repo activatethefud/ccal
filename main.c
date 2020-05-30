@@ -26,7 +26,7 @@
 #define LOG_SAFETY (2)
 #define DAY_SECS (3600*24)
 
-#define GETOPT_FMT "nd:ptq:w:s:"
+#define GETOPT_FMT "nd:ptq:w:s:f:"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -129,6 +129,8 @@ int main(int argc, char **argv)
 	int week_flag = 0;
 	int skip_flag = 0;
 	int clear_date_flag = 0;
+	int forward_flag = 0;
+	int forward_arg;
 
 	char* query_arg = NULL;
 
@@ -186,6 +188,10 @@ int main(int argc, char **argv)
 				case 's':
 					skip_flag = atoi(optarg);
 					break;
+				case 'f':
+					forward_flag= 1;
+					forward_arg = atoi(optarg);
+					break;
 			}
 		}
 	}
@@ -199,6 +205,16 @@ int main(int argc, char **argv)
 		}
 		else {
 			printf("Date not skipped.\n");
+		}
+	}
+	else if(query_flag && forward_flag) {
+
+		struct tm start_time = string_to_time(query_arg);
+		shift_t shift = daily;
+
+		for(int i=0;i<forward_arg;++i) {
+			answer_query(start_time);
+			shift_time(&start_time,shift,1);
 		}
 	}
 	else if(query_flag && clear_date_flag) {
@@ -547,6 +563,7 @@ void print_usage()
 		"    -w <date> - Print week's worth of events from <date>\n"
 		"    -q --query <date> -s <id> - Skip event with <id> on <date>\n"
 		"    -q --query <date> --clear-date - Skip all events on <date>\n"
+		"    -q --query <date> -f <num> - Print events for <num> of dates from <date>\n"
 		);
 }
 
