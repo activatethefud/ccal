@@ -235,7 +235,7 @@ int main(int argc, char **argv)
 
 	}
 	else if(test_flag) {
-		answer_query(string_to_time(lineread(stdin,"Enter date: ")));
+		//answer_query(string_to_time(lineread(stdin,"Enter date: ")));
 	}
 	else if(delete_flag) {
 
@@ -348,18 +348,13 @@ float free_time(event *arr,const int arr_size,bool *overlap)
 		event e = arr[i];
 
 		// Skip whole day events
-		if(!((e.start_time.tm_hour == 0 && e.start_time.tm_min == 0) &&
-		     ((e.end_time.tm_hour == 23 && e.end_time.tm_min == 59) ||
-		      (e.end_time.tm_hour == 0 && e.end_time.tm_min == 0 )))) {
+		intervals[intervals_count].time = e.start_time;
+		intervals[intervals_count].opening_closing = 1;
+		++intervals_count;
 
-			intervals[intervals_count].time = e.start_time;
-			intervals[intervals_count].opening_closing = 1;
-			++intervals_count;
-
-			intervals[intervals_count].time = e.end_time;
-			intervals[intervals_count].opening_closing = -1;
-			++intervals_count;
-		}
+		intervals[intervals_count].time = e.end_time;
+		intervals[intervals_count].opening_closing = -1;
+		++intervals_count;
 	}
 
 	qsort(intervals,intervals_count,sizeof *intervals,compare_intervals);
@@ -714,8 +709,8 @@ event new_event()
 	tmp = lineread(stdin,"End time: ");
 
 	if(tmp[0] == '\0') {
-		new.end_time.tm_hour = 23;
-		new.end_time.tm_min = 59;
+		new.end_time.tm_hour = 0;
+		new.end_time.tm_min = 0;
 	}
 	else {
 		int time = atoi(tmp);
