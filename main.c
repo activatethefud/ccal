@@ -100,7 +100,17 @@ typedef struct {
 #define DURATION_FIELD (1)
 #define EVAL_FIELD (2)
 
-event *read_goals(const char *goal_file)
+void print_goal(void *g)
+{
+        goal_t *goal = (goal_t*)g;
+
+        printf("Name: %s\nDuration: %f\nE_val: %lf\n",
+                goal->name,
+                goal->duration,
+                goal->e_val);
+}
+
+node_t *read_goals(const char *goal_file)
 {
         FILE *input = fopen(goal_file,"r");
 
@@ -122,12 +132,22 @@ event *read_goals(const char *goal_file)
 
                 add_right(&goals,goal,sizeof *goal);
 
-                printf("Name: %s\nDuration: %f\nE_val: %lf\n",
-                        goal->name,
-                        goal->duration,
-                        goal->e_val);
-
         }
+
+        return goals;
+}
+
+char *input(const char *prompt)
+{
+        printf("%s",prompt);
+        char *line = NULL;
+        size_t bytes_allocated = 0;
+
+        ssize_t bytes_read = getline(&line,&bytes_allocated,stdin);
+        Assert(-1 != bytes_read,"Readline failed");
+
+        line[bytes_read-1] = '\0';
+        return line;
 }
 
 int main(int argc, char **argv)
@@ -250,7 +270,23 @@ int main(int argc, char **argv)
 	}
         // TEST
 	else if(test_flag) {
-                read_goals("/home/nikola/Documents/C/ccal/goals.txt");
+                node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
+                print_list(goals,print_goal);
+
+                printf("Size: %d\n",goals->size);
+
+                struct tm time = string_to_time(input("Date: "));
+
+                event *e_arr;
+                int e_arr_size;
+
+                get_events_on_date(time,&e_arr,&e_arr_size);
+
+                for(int i=0;i<e_arr_size;++i) {
+                        print_event_short(e_arr + i);
+                }
+
+                delete_list(goals);
 	}
 	else if(delete_flag) {
 

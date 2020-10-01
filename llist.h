@@ -13,5 +13,6 @@ int find_node_index(node_t *head,comparison_t *c,void *x);
 void free_node(node_t *head);
 int list_len(node_t *head);
 void delete_node(node_t **head,comparison_t *c,void *x);
+void delete_list(node_t *head);
 
 #endif

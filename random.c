@@ -34,6 +34,19 @@ int weighted_choice(double *weights,int n)
 	return i-1;
 }
 
+void e_vals_to_probabilities(double *e_vals,int n)
+{
+        for(int i=0;i<n;++i) {
+                e_vals[i] = 1/e_vals[i];
+        }
+
+        double _sum = sum(e_vals,n);
+
+        for(int i=0;i<n;++i) {
+                e_vals[i] *= 1/_sum;
+        }
+}
+
 void print_arr(double *arr,int n)
 {
 	for(int i=0;i<n;++i) {

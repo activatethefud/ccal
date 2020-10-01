@@ -39,6 +39,7 @@ typedef struct {
 
 typedef struct _node_t {
         void *data;
+        int size;
         struct _node_t *next;
 } node_t;
 
