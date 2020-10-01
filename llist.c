@@ -147,3 +147,14 @@ void delete_list(node_t *head)
         free(head->data);
         free(head);
 }
+
+node_t *get_node(node_t *head,int index)
+{
+        assert(index < head->size);
+
+        while(index--) {
+                head=head->next;
+        }
+
+        return head;
+}

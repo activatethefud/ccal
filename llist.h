@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #ifndef LLIST_H
 #define LLIST_H
@@ -14,5 +15,6 @@ void free_node(node_t *head);
 int list_len(node_t *head);
 void delete_node(node_t **head,comparison_t *c,void *x);
 void delete_list(node_t *head);
+node_t *get_node(node_t *head,int index);
 
 #endif

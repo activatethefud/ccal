@@ -14,6 +14,7 @@
 #include <getopt.h>
 #include "llist.h"
 #include "tokenizer.h"
+#include "random.h"
 
 #define DATE_FMT "%d/%m/%Y"
 #define DATA_DIR "/home/nikola/.config/ccal/events"
@@ -114,7 +115,7 @@ node_t *read_goals(const char *goal_file)
 {
         FILE *input = fopen(goal_file,"r");
 
-        assert(NULL != input);
+        Assert(NULL != input,"Error opening file");
 
         char *line = NULL;
         size_t bytes_allocated = 0;
@@ -271,21 +272,46 @@ int main(int argc, char **argv)
         // TEST
 	else if(test_flag) {
                 node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
-                print_list(goals,print_goal);
+                int n = goals->size;
 
-                printf("Size: %d\n",goals->size);
+                //print_list(goals,print_goal);
+                //printf("Size: %d\n",goals->size);
 
-                struct tm time = string_to_time(input("Date: "));
+                char *date_string = input("Date: ");
+
+                struct tm time = string_to_time(date_string);
+
+                struct tm day_start = string_to_time(date_string);
+                struct tm day_end = string_to_time(date_string);
+
+                day_end.tm_mday++;
+                mktime(&day_end);
+
+                print_tm(&day_start);
+                print_tm(&day_end);
+
+                exit(0);
 
                 event *e_arr;
                 int e_arr_size;
 
                 get_events_on_date(time,&e_arr,&e_arr_size);
 
-                for(int i=0;i<e_arr_size;++i) {
-                        print_event_short(e_arr + i);
+                double *weights = calloc(n,sizeof(double));
+
+                int i=0;
+                for(node_t *it = goals;it != NULL;it = it->next) {
+                        goal_t *g = (goal_t*)it->data;
+                        weights[i++] = g->e_val;
                 }
 
+
+                e_vals_to_probabilities(weights,n);
+
+                (*print_goal)(get_node(goals,weighted_choice(weights,n))->data);
+
+                free(weights);
+                free(date_string);
                 delete_list(goals);
 	}
 	else if(delete_flag) {
@@ -941,6 +967,9 @@ status init(const char *data_dir)
 {
 	// Set timezone from system timezone
 	tzset();
+
+        // Set random seed
+        srand(time(NULL));
 	
 	// Change working directory to data_dir
 	Assert(-1 != chdir(data_dir),"Error changing directory");

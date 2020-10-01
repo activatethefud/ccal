@@ -23,10 +23,13 @@ int weighted_choice(double *weights,int n)
 {
 	double choice = uniform()*sum(weights,n);
 
+        printf("Choice: %lf\n",choice);
+
 	double acc = 0;
 	int i = 0;
 
 	while(acc < choice) {
+                printf("%lf ",weights[i]);
 		acc += weights[i];
 		++i;
 	}

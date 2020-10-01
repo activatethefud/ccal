@@ -1,9 +1,10 @@
-ccal: main.o llist.o tokenizer.o
-	gcc -Wall -Wextra -lm -o ccal main.o llist.o tokenizer.o
+ccal: main.o llist.o tokenizer.o random.o
+	gcc -Wall -Wextra -lm -o ccal main.o llist.o tokenizer.o random.o
 
 main.o:
 llist.o:
 tokenizer.o:
+random.o:
 
 .PHONY: debug
 
