@@ -42,6 +42,4 @@ typedef struct _node_t {
         struct _node_t *next;
 } node_t;
 
-int compare(comparison_t *c) { return (c->fptr)(c->a,c->b); }
-
 #endif

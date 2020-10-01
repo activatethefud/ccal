@@ -1,5 +1,7 @@
 #include "llist.h"
 
+int compare(comparison_t *c) { return (c->fptr)(c->a,c->b); }
+
 void add_right(node_t **head,void *new_data,size_t data_size)
 {
         node_t *new_node = malloc(sizeof *new_node);

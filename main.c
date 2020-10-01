@@ -12,6 +12,8 @@
 #include <unistd.h>
 #include <math.h>
 #include <getopt.h>
+#include "llist.h"
+#include "tokenizer.h"
 
 #define DATE_FMT "%d/%m/%Y"
 #define DATA_DIR "/home/nikola/.config/ccal/events"
@@ -36,34 +38,6 @@ void Error(const bool cond, const char *msg, const char *file, const int line)
 		exit(EXIT_FAILURE);
 	}
 }
-
-typedef char small_int;
-typedef char status;
-
-typedef enum {
-	none,
-	daily,
-	weekly,
-	monthly,
-	yearly
-} repeat_t, shift_t;
-
-typedef struct {
-	struct tm time;
-	small_int opening_closing;
-} interval_t;
-
-
-typedef struct {
-	unsigned event_id;
-	char *description;
-	struct tm start_time;
-	struct tm end_time;
-	repeat_t repeat_mode;
-	small_int repeat_frequency;
-	unsigned num_of_skipped_dates;
-	struct tm *skipped_dates;
-} event;
 
 int max(int a, int b) { return a > b ? a : b; } 
 
@@ -114,6 +88,46 @@ void print_tm(struct tm *time)
 	time->tm_mday,
 	time->tm_mon,
 	time->tm_year);
+}
+
+typedef struct {
+        char *name;
+        float duration;
+        double e_val;
+} goal_t;
+
+#define NAME_FIELD (0)
+#define DURATION_FIELD (1)
+#define EVAL_FIELD (2)
+
+event *read_goals(const char *goal_file)
+{
+        FILE *input = fopen(goal_file,"r");
+
+        assert(NULL != input);
+
+        char *line = NULL;
+        size_t bytes_allocated = 0;
+
+        node_t *goals = NULL;
+
+        while(-1 != getline(&line,&bytes_allocated,input)) {
+                goal_t *goal = malloc(sizeof *goal);
+
+                tokenizer_t *t = create_tokenizer(line);
+
+                goal->name = tokenizer_get(t,NAME_FIELD);
+                goal->duration = strtof(tokenizer_get(t,DURATION_FIELD),NULL);
+                goal->e_val = strtod(tokenizer_get(t,EVAL_FIELD),NULL);
+
+                add_right(&goals,goal,sizeof *goal);
+
+                printf("Name: %s\nDuration: %f\nE_val: %lf\n",
+                        goal->name,
+                        goal->duration,
+                        goal->e_val);
+
+        }
 }
 
 int main(int argc, char **argv)
@@ -234,8 +248,9 @@ int main(int argc, char **argv)
 		}
 
 	}
+        // TEST
 	else if(test_flag) {
-		//answer_query(string_to_time(lineread(stdin,"Enter date: ")));
+                read_goals("/home/nikola/Documents/C/ccal/goals.txt");
 	}
 	else if(delete_flag) {
 

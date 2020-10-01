@@ -1,7 +1,9 @@
-ccal: main.o
-	gcc -Wall -Wextra -lm -o ccal main.o
+ccal: main.o llist.o tokenizer.o
+	gcc -Wall -Wextra -lm -o ccal main.o llist.o tokenizer.o
 
-main.o: main.c
+main.o:
+llist.o:
+tokenizer.o:
 
 .PHONY: debug
 
