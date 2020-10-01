@@ -28,6 +28,9 @@
 #define MINUTES(x) (x)%100
 #define LOG_SAFETY (2)
 #define DAY_SECS (3600*24)
+#define NAME_FIELD (0)
+#define DURATION_FIELD (1)
+#define EVAL_FIELD (2)
 
 #define GETOPT_FMT "nd:ptq:w:s:f:"
 
@@ -50,14 +53,14 @@ event* events;
 status iterate_directory(const char *dirname,void* (*func)(void*));
 status init(const char *data_dir);
 status destructor();
-void* event_destructor(void *e);
+void event_destructor(void *e);
 status load_events(const char *data_dir);
 void* filename_new_event(void *arg);
 char* lineread(FILE *stream,const char *prompt);
 struct tm string_to_time(char *string);
-status iterate_events(void* (*func)(void*));
-void* print_event_short(void *e);
-void* print_event_long(void *e);
+status iterate_events(void (*func)(void*));
+void print_event_short(void *e);
+void print_event_long(void *e);
 void* set_max_ID(void *arg);
 event new_event();
 status delete_event(unsigned id_to_delete);
@@ -90,16 +93,6 @@ void print_tm(struct tm *time)
 	time->tm_mon,
 	time->tm_year);
 }
-
-typedef struct {
-        char *name;
-        float duration;
-        double e_val;
-} goal_t;
-
-#define NAME_FIELD (0)
-#define DURATION_FIELD (1)
-#define EVAL_FIELD (2)
 
 void print_goal(void *g)
 {
@@ -149,6 +142,19 @@ char *input(const char *prompt)
 
         line[bytes_read-1] = '\0';
         return line;
+}
+
+int get_event_id(node_t *ptr)
+{
+        return ((event*)ptr->data)->event_id;
+}
+
+int compare_goals_by_name(void *a,void *b)
+{
+        goal_t *g1 = a;
+        goal_t *g2 = b;
+
+        return strcmp(g1->name,g2->name);
 }
 
 int main(int argc, char **argv)
@@ -271,14 +277,10 @@ int main(int argc, char **argv)
 	}
         // TEST
 	else if(test_flag) {
-                node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
-                int n = goals->size;
-
-                //print_list(goals,print_goal);
-                //printf("Size: %d\n",goals->size);
 
                 char *date_string = input("Date: ");
 
+                // Set up day start and end events, and add them to the event list
                 struct tm time = string_to_time(date_string);
 
                 struct tm day_start = string_to_time(date_string);
@@ -287,32 +289,73 @@ int main(int argc, char **argv)
                 day_end.tm_mday++;
                 mktime(&day_end);
 
-                print_tm(&day_start);
-                print_tm(&day_end);
+                event day_start_event;
+                day_start_event.event_id = first_free_ID++;
+                day_start_event.description = "Day start";
+                day_start_event.start_time = day_start;
+                day_start_event.end_time = day_start;
+                
+                event day_end_event;
+                day_end_event.event_id = first_free_ID++;
+                day_end_event.description = "Day end";
+                day_end_event.start_time = day_end;
+                day_end_event.end_time = day_end;
+                //
 
-                exit(0);
-
+                // Get events on date and convert to linked list
                 event *e_arr;
                 int e_arr_size;
-
                 get_events_on_date(time,&e_arr,&e_arr_size);
 
-                double *weights = calloc(n,sizeof(double));
-
-                int i=0;
-                for(node_t *it = goals;it != NULL;it = it->next) {
-                        goal_t *g = (goal_t*)it->data;
-                        weights[i++] = g->e_val;
+                node_t *events = NULL;
+                for(int i=0;i<e_arr_size;++i) {
+                        add_right(&events,e_arr+i,sizeof *(e_arr+i));
                 }
 
+                add_left(&events,&day_start_event,sizeof day_start_event);
+                add_right(&events,&day_end_event,sizeof day_end_event);
+                //
 
-                e_vals_to_probabilities(weights,n);
+                node_t *ptr1 = events;
+                node_t *ptr2 = events;
 
-                (*print_goal)(get_node(goals,weighted_choice(weights,n))->data);
+                // Main loop - while first pointer is not at the end
+                while(get_event_id(ptr1) != day_end_event.event_id) {
+                        double free_time = fabs(
+                                tm_difftime(
+                                        &(((event*)ptr1->data)->end_time),
+                                        &(((event*)ptr2->data)->start_time)
+                                        )
+                                );
 
-                free(weights);
+                        if(get_event_id(ptr1) == get_event_id(ptr2)) {
+                                ptr2 = ptr2->next;
+                                continue;
+                        }
+
+                        if(free_time == 0) {
+                                ptr1 = ptr1->next;
+                                continue;
+                        }
+
+                        node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
+
+                        while(goals->size != 0) {
+                        }
+
+                        print_list(goals,print_goal);
+
+                        print_event_short(ptr1->data);
+                        print_event_short(ptr2->data);
+                        break;
+
+                }
+                //
+
+                print_list(events,print_event_long);
+
+                delete_list(events);
                 free(date_string);
-                delete_list(goals);
 	}
 	else if(delete_flag) {
 
@@ -639,7 +682,7 @@ void print_usage()
 		);
 }
 
-void* event_destructor(void *e)
+void event_destructor(void *e)
 {
 	event* ev = (event*)e;
 	free(ev->description);
@@ -1022,7 +1065,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 	return 0;
 }
 
-status iterate_events(void* (*func)(void*))
+status iterate_events(void (*func)(void*))
 {
 	for(int i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
@@ -1031,7 +1074,7 @@ status iterate_events(void* (*func)(void*))
 	}
 }
 
-void* print_event_short(void *e)
+void print_event_short(void *e)
 {
 	event ev = *(event*)e;
 
@@ -1044,7 +1087,7 @@ void* print_event_short(void *e)
 		ev.description);
 }
 
-void* print_event_long(void *e)
+void print_event_long(void *e)
 {
 	event ev = *(event*)e;
 	char start_date_str[DATE_SIZE_MAX];

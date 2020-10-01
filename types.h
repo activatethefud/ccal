@@ -43,4 +43,10 @@ typedef struct _node_t {
         struct _node_t *next;
 } node_t;
 
+typedef struct {
+        char *name;
+        float duration;
+        double e_val;
+} goal_t;
+
 #endif
