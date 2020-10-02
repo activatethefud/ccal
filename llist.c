@@ -2,15 +2,21 @@
 
 int compare(comparison_t *c) { return (c->fptr)(c->a,c->b); }
 
+node_t *_new_node(void *new_data,size_t data_size)
+{
+	node_t *node = malloc(sizeof(node_t));
+
+	node->data = malloc(data_size);
+	node->next = NULL;
+	node->size = 1;
+
+	memcpy(node->data,new_data,data_size);
+	return node;
+}
+
 void add_right(node_t **head,void *new_data,size_t data_size)
 {
-        node_t *new_node = malloc(sizeof *new_node);
-
-        new_node->data = malloc(data_size);
-        new_node->next = NULL;
-        new_node->size = 1;
-
-        memcpy(new_node->data,new_data,data_size);
+        node_t *new_node = _new_node(new_data,data_size);
 
         if((*head) == NULL) {
                 (*head) = new_node;
@@ -34,7 +40,7 @@ void add_left(node_t **head,void *new_data,size_t data_size)
 
         new_node->data = malloc(data_size);
         new_node->next = NULL;
-        new_node->size = 1;
+        new_node->size = (*head)->size;
 
         memcpy(new_node->data,new_data,data_size);
 
@@ -129,11 +135,10 @@ void delete_node(node_t **head,comparison_t *c,void *x)
                 (*head)->next->size = (*head)->size;
                 (*head) = (*head)->next;
                 free_node(tmp);
-                return;
         }
 
         // Delete last node
-        if(index == n-1) {
+        else if(index == n-1) {
                 node_t *iter = (*head);
 
                 for(int i=0;i<n-2;++i) {
@@ -143,8 +148,6 @@ void delete_node(node_t **head,comparison_t *c,void *x)
 
                 free_node(iter->next);
                 iter->next = NULL;
-
-                return;
         }
 
 
@@ -161,7 +164,6 @@ void delete_node(node_t **head,comparison_t *c,void *x)
                 iter->next = iter->next->next;
 
                 free(tmp);
-                return;
         }
 }
 
@@ -190,7 +192,6 @@ void insert_after(node_t **head,void *data,size_t data_size,int index)
         int n = (*head)->size;
         assert(index < n);
 
-
         if(index == n-1) {
                 add_right(head,data,data_size);
                 return;
@@ -207,6 +208,7 @@ void insert_after(node_t **head,void *data,size_t data_size,int index)
                 iter = iter->next;
         }
 
+	(*head)->size++;
         new_node->next = iter->next;
         iter->next = new_node;
 

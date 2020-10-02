@@ -47,6 +47,7 @@ typedef struct {
         char *name;
         float duration;
         double e_val;
+	small_int repeating;
 } goal_t;
 
 #endif

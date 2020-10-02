@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <getopt.h>
+#include <stdbool.h>
 #include "llist.h"
 #include "tokenizer.h"
 #include "random.h"
@@ -31,6 +32,7 @@
 #define NAME_FIELD (0)
 #define DURATION_FIELD (1)
 #define EVAL_FIELD (2)
+#define REPEAT_FIELD (3)
 
 #define GETOPT_FMT "nd:ptq:w:s:f:"
 
@@ -98,10 +100,11 @@ void print_goal(void *g)
 {
         goal_t *goal = (goal_t*)g;
 
-        printf("Name: %s\nDuration: %f\nE_val: %lf\n",
+        printf("Name: %s\nDuration: %f\nE_val: %lf\nRepeating: %d\n",
                 goal->name,
                 goal->duration,
-                goal->e_val);
+                goal->e_val,
+		goal->repeating);
 }
 
 node_t *read_goals(const char *goal_file)
@@ -118,16 +121,21 @@ node_t *read_goals(const char *goal_file)
         while(-1 != getline(&line,&bytes_allocated,input)) {
                 goal_t *goal = malloc(sizeof *goal);
 
+		puts(line);
                 tokenizer_t *t = create_tokenizer(line);
 
                 goal->name = tokenizer_get(t,NAME_FIELD);
                 goal->duration = strtof(tokenizer_get(t,DURATION_FIELD),NULL);
                 goal->e_val = strtod(tokenizer_get(t,EVAL_FIELD),NULL);
+		//goal->repeating = strtol(tokenizer_get(t,REPEAT_FIELD),NULL,10);
+
+		print_goal(goal);
 
                 add_right(&goals,goal,sizeof *goal);
 
         }
 
+	fclose(input);
         return goals;
 }
 
@@ -165,7 +173,7 @@ int compare_events_by_id(void *a,void *b)
         int id1 = e1->event_id;
         int id2 = e2->event_id;
 
-        return id1 == id2;
+        return id1 - id2;
 }
 
 int main(int argc, char **argv)
@@ -333,9 +341,6 @@ int main(int argc, char **argv)
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
 
-                        printf("Iteration----\n");
-                        print_event_short(ptr1->data);
-                        print_event_short(ptr2->data);
                         double free_time = fabs(
                                 tm_difftime(
                                         &(((event*)ptr1->data)->end_time),
@@ -353,7 +358,7 @@ int main(int argc, char **argv)
                                 continue;
                         }
 
-                        node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
+                        node_t *goals = read_goals("/tmp/tmp.uQ4xhDBUOX/ccal/goals.txt");
                         int n = goals->size;
 
                         comparison_t *c = malloc(sizeof *c);
@@ -362,13 +367,12 @@ int main(int argc, char **argv)
                         comparison_t *c_e = malloc(sizeof *c_e);
                         c_e->fptr = compare_events_by_id;
 
-                        // While not empty
+                        // While goal list is not empty
                         for(int i=0;i<n;++i) {
-                                print_event_short(ptr1->data);
                                 int choice_index = weighted_choice_goals(goals);
                                 goal_t *choice = (goal_t*)(get_node(goals,choice_index)->data);
 
-                                if(free_time > choice->duration*3600) {
+                                if(free_time >= choice->duration*3600) {
 
                                         event *new_event = malloc(sizeof *new_event);
                                         new_event->event_id = first_free_ID++;
@@ -379,22 +383,27 @@ int main(int argc, char **argv)
                                         new_event->end_time.tm_hour += (int)choice->duration;
 
                                         int insert_index = find_node_index(events,c_e,ptr1->data);
+
                                         insert_after(&events,new_event,sizeof *new_event,insert_index);
+                                        //insert_after(&ptr1,new_event,sizeof *new_event,0);
 
                                         free_time -= choice->duration*3600;
                                         ptr1 = ptr1->next;
 
                                 }
 
-                                print_list(events,print_event_long);
-
                                 delete_node(&goals,c,choice);
+
 
                         }
 
-                        break;
+			ptr1 = ptr1->next;
 
                 }
+		
+		print_list(events,print_event_short);
+
+
                 //
 
                 //print_list(events,print_event_long);
