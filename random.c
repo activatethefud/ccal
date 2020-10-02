@@ -49,7 +49,7 @@ void e_vals_to_probabilities(double *e_vals,int n)
 
 int weighted_choice_goals(node_t *goals)
 {
-        int n = goals->size;
+        int n = list_size(goals);
         double *weights = calloc(n,sizeof *weights);
 
         int i=0;

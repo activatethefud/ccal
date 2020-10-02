@@ -121,15 +121,12 @@ node_t *read_goals(const char *goal_file)
         while(-1 != getline(&line,&bytes_allocated,input)) {
                 goal_t *goal = malloc(sizeof *goal);
 
-		puts(line);
                 tokenizer_t *t = create_tokenizer(line);
 
                 goal->name = tokenizer_get(t,NAME_FIELD);
                 goal->duration = strtof(tokenizer_get(t,DURATION_FIELD),NULL);
                 goal->e_val = strtod(tokenizer_get(t,EVAL_FIELD),NULL);
-		//goal->repeating = strtol(tokenizer_get(t,REPEAT_FIELD),NULL,10);
-
-		print_goal(goal);
+		goal->repeating = strtol(tokenizer_get(t,REPEAT_FIELD),NULL,10);
 
                 add_right(&goals,goal,sizeof *goal);
 
@@ -327,6 +324,7 @@ int main(int argc, char **argv)
                 get_events_on_date(time,&e_arr,&e_arr_size);
 
                 node_t *events = NULL;
+
                 for(int i=0;i<e_arr_size;++i) {
                         add_right(&events,e_arr+i,sizeof *(e_arr+i));
                 }
@@ -338,8 +336,16 @@ int main(int argc, char **argv)
                 node_t *ptr1 = events;
                 node_t *ptr2 = events;
 
+                node_t *goals_base = read_goals("/tmp/tmp.Fd09ii10WU/ccal/goals.txt");
+
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
+
+			//printf("PTR1:\n");
+			//print_event_short(ptr1->data);
+			//printf("PTR2:\n");
+			//print_event_short(ptr2->data);
+			//printf("ITERATION----\n");
 
                         double free_time = fabs(
                                 tm_difftime(
@@ -358,19 +364,23 @@ int main(int argc, char **argv)
                                 continue;
                         }
 
-                        node_t *goals = read_goals("/tmp/tmp.uQ4xhDBUOX/ccal/goals.txt");
-                        int n = goals->size;
+
+                        //node_t *goals = read_goals("/tmp/tmp.Fd09ii10WU/ccal/goals.txt");
+			node_t *goals = copy_list(goals_base);
+
+			int n = list_size(goals);
 
                         comparison_t *c = malloc(sizeof *c);
                         c->fptr = compare_goals_by_name;
 
                         comparison_t *c_e = malloc(sizeof *c_e);
                         c_e->fptr = compare_events_by_id;
-
+			
                         // While goal list is not empty
                         for(int i=0;i<n;++i) {
                                 int choice_index = weighted_choice_goals(goals);
-                                goal_t *choice = (goal_t*)(get_node(goals,choice_index)->data);
+
+                                goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
 
                                 if(free_time >= choice->duration*3600) {
 
@@ -390,24 +400,27 @@ int main(int argc, char **argv)
                                         free_time -= choice->duration*3600;
                                         ptr1 = ptr1->next;
 
+					if(choice->repeating == 0) {
+						delete_node(&goals_base,c,choice);
+						delete_node(&goals,c,choice);
+					}
+
                                 }
 
-                                delete_node(&goals,c,choice);
+                                //delete_node(&goals,c,choice);
+
 
 
                         }
 
 			ptr1 = ptr1->next;
+			delete_list(goals);
 
                 }
 		
 		print_list(events,print_event_short);
 
-
-                //
-
-                //print_list(events,print_event_long);
-
+		delete_list(goals_base);
                 delete_list(events);
                 free(date_string);
 	}

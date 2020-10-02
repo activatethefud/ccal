@@ -3,6 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "types.h"
+#include "llist.h"
 
 #ifndef RANDOM_H
 #define RANDOM_H

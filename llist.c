@@ -2,13 +2,23 @@
 
 int compare(comparison_t *c) { return (c->fptr)(c->a,c->b); }
 
-node_t *_new_node(void *new_data,size_t data_size)
+int list_size(node_t *head)
 {
-	node_t *node = malloc(sizeof(node_t));
+	int size = 0;
+	while(head != NULL) {
+		++size;
+		head = head->next;
+	}
+	return size;
+}
+
+node_t *create_node(void *new_data,size_t data_size)
+{
+	node_t *node = malloc(sizeof *node);
 
 	node->data = malloc(data_size);
 	node->next = NULL;
-	node->size = 1;
+	node->data_size = data_size;
 
 	memcpy(node->data,new_data,data_size);
 	return node;
@@ -16,14 +26,13 @@ node_t *_new_node(void *new_data,size_t data_size)
 
 void add_right(node_t **head,void *new_data,size_t data_size)
 {
-        node_t *new_node = _new_node(new_data,data_size);
+        node_t *new_node = create_node(new_data,data_size);
 
         if((*head) == NULL) {
                 (*head) = new_node;
         }
         else {
                 node_t *iter = (*head);
-                (*head)->size++;
 
                 while(iter->next != NULL) {
                         iter = iter->next;
@@ -36,13 +45,7 @@ void add_right(node_t **head,void *new_data,size_t data_size)
 
 void add_left(node_t **head,void *new_data,size_t data_size)
 {
-        node_t *new_node = malloc(sizeof *new_node);
-
-        new_node->data = malloc(data_size);
-        new_node->next = NULL;
-        new_node->size = (*head)->size;
-
-        memcpy(new_node->data,new_data,data_size);
+        node_t *new_node = create_node(new_data,data_size);
 
         if((*head) == NULL) {
                 (*head) = new_node;
@@ -50,7 +53,6 @@ void add_left(node_t **head,void *new_data,size_t data_size)
         else {
                 new_node->next = (*head);
                 (*head) = new_node;
-                (*head)->size++;
         }
 }
 
@@ -124,7 +126,7 @@ void delete_node(node_t **head,comparison_t *c,void *x)
         }
 
         //int n = list_len((*head));
-        int n = (*head)->size--;
+	int n = list_size(*head);
 
         // Delete first node
         if(index == 0) {
@@ -132,7 +134,6 @@ void delete_node(node_t **head,comparison_t *c,void *x)
                 if(n == 1) { free(*head); (*head) = NULL; return; }
 
                 node_t *tmp = (*head);
-                (*head)->next->size = (*head)->size;
                 (*head) = (*head)->next;
                 free_node(tmp);
         }
@@ -176,9 +177,10 @@ void delete_list(node_t *head)
         free(head);
 }
 
-node_t *get_node(node_t *head,int index)
+node_t *get_node_at(node_t *head,int index)
 {
-        assert(index < head->size);
+	assert(NULL != head);
+        assert(index < list_size(head));
 
         while(index--) {
                 head=head->next;
@@ -189,7 +191,8 @@ node_t *get_node(node_t *head,int index)
 
 void insert_after(node_t **head,void *data,size_t data_size,int index)
 {
-        int n = (*head)->size;
+        //int n = (*head)->size;
+	int n = list_size(*head);
         assert(index < n);
 
         if(index == n-1) {
@@ -197,19 +200,26 @@ void insert_after(node_t **head,void *data,size_t data_size,int index)
                 return;
         }
 
-        node_t *new_node = malloc(sizeof *new_node);
-
-        new_node->data = malloc(data_size);
-        new_node->next = NULL;
-        memcpy(new_node->data,data,data_size);
+        node_t *new_node = create_node(data,data_size);
 
         node_t *iter = (*head);
         for(int i=0;i<index;++i) {
                 iter = iter->next;
         }
 
-	(*head)->size++;
         new_node->next = iter->next;
         iter->next = new_node;
 
+}
+
+node_t *copy_list(node_t *list)
+{
+	node_t *copy = NULL;
+
+	while(list != NULL) {
+		add_right(&copy,list->data,list->data_size);
+		list = list->next;
+	}
+
+	return copy;
 }

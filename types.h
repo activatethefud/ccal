@@ -39,7 +39,7 @@ typedef struct {
 
 typedef struct _node_t {
         void *data;
-        int size;
+	size_t data_size;
         struct _node_t *next;
 } node_t;
 
@@ -47,7 +47,7 @@ typedef struct {
         char *name;
         float duration;
         double e_val;
-	small_int repeating;
+	int repeating;
 } goal_t;
 
 #endif

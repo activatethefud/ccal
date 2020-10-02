@@ -17,7 +17,9 @@ tokenizer_t *create_tokenizer(char *_line)
 
                 if(tokenizer->token_count == tokenizer->allocated_size) {
                         tokenizer->allocated_size *= 2;
-                        tokenizer->tokens = realloc(tokenizer->tokens,tokenizer->allocated_size);
+                        tokenizer->tokens = realloc(tokenizer->tokens,tokenizer->allocated_size * sizeof *tokenizer->tokens);
+			assert(NULL != tokenizer->tokens);
+			assert(NULL != tokenizer);
                 }
 
                 tokenizer->tokens[tokenizer->token_count++] = token;
