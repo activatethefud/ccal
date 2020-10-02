@@ -17,5 +17,6 @@ void delete_node(node_t **head,comparison_t *c,void *x);
 void delete_list(node_t *head);
 node_t *get_node(node_t *head,int index);
 void add_left(node_t **head,void *new_data,size_t data_size);
+void insert_after(node_t **head,void *data,size_t data_size,int index);
 
 #endif

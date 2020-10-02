@@ -23,13 +23,10 @@ int weighted_choice(double *weights,int n)
 {
 	double choice = uniform()*sum(weights,n);
 
-        printf("Choice: %lf\n",choice);
-
 	double acc = 0;
 	int i = 0;
 
 	while(acc < choice) {
-                printf("%lf ",weights[i]);
 		acc += weights[i];
 		++i;
 	}
@@ -48,6 +45,21 @@ void e_vals_to_probabilities(double *e_vals,int n)
         for(int i=0;i<n;++i) {
                 e_vals[i] *= 1/_sum;
         }
+}
+
+int weighted_choice_goals(node_t *goals)
+{
+        int n = goals->size;
+        double *weights = calloc(n,sizeof *weights);
+
+        int i=0;
+        while(goals != NULL) {
+                weights[i++] = ((goal_t*)goals->data)->e_val;
+                goals = goals->next;
+        }
+
+        e_vals_to_probabilities(weights,n);
+        return weighted_choice(weights,n);
 }
 
 void print_arr(double *arr,int n)

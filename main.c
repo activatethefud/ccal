@@ -157,6 +157,17 @@ int compare_goals_by_name(void *a,void *b)
         return strcmp(g1->name,g2->name);
 }
 
+int compare_events_by_id(void *a,void *b)
+{
+        event *e1 = (event*)a;
+        event *e2 = (event*)b;
+
+        int id1 = e1->event_id;
+        int id2 = e2->event_id;
+
+        return id1 == id2;
+}
+
 int main(int argc, char **argv)
 {
 	init(DATA_DIR);
@@ -321,6 +332,10 @@ int main(int argc, char **argv)
 
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
+
+                        printf("Iteration----\n");
+                        print_event_short(ptr1->data);
+                        print_event_short(ptr2->data);
                         double free_time = fabs(
                                 tm_difftime(
                                         &(((event*)ptr1->data)->end_time),
@@ -339,20 +354,50 @@ int main(int argc, char **argv)
                         }
 
                         node_t *goals = read_goals("/home/nikola/Documents/C/ccal/goals.txt");
+                        int n = goals->size;
 
-                        while(goals->size != 0) {
+                        comparison_t *c = malloc(sizeof *c);
+                        c->fptr = compare_goals_by_name;
+
+                        comparison_t *c_e = malloc(sizeof *c_e);
+                        c_e->fptr = compare_events_by_id;
+
+                        // While not empty
+                        for(int i=0;i<n;++i) {
+                                print_event_short(ptr1->data);
+                                int choice_index = weighted_choice_goals(goals);
+                                goal_t *choice = (goal_t*)(get_node(goals,choice_index)->data);
+
+                                if(free_time > choice->duration*3600) {
+
+                                        event *new_event = malloc(sizeof *new_event);
+                                        new_event->event_id = first_free_ID++;
+                                        new_event->description = strdup(choice->name);
+
+                                        memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
+                                        memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
+                                        new_event->end_time.tm_hour += (int)choice->duration;
+
+                                        int insert_index = find_node_index(events,c_e,ptr1->data);
+                                        insert_after(&events,new_event,sizeof *new_event,insert_index);
+
+                                        free_time -= choice->duration*3600;
+                                        ptr1 = ptr1->next;
+
+                                }
+
+                                print_list(events,print_event_long);
+
+                                delete_node(&goals,c,choice);
+
                         }
 
-                        print_list(goals,print_goal);
-
-                        print_event_short(ptr1->data);
-                        print_event_short(ptr2->data);
                         break;
 
                 }
                 //
 
-                print_list(events,print_event_long);
+                //print_list(events,print_event_long);
 
                 delete_list(events);
                 free(date_string);

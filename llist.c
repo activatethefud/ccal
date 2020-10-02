@@ -184,3 +184,30 @@ node_t *get_node(node_t *head,int index)
 
         return head;
 }
+
+void insert_after(node_t **head,void *data,size_t data_size,int index)
+{
+        int n = (*head)->size;
+        assert(index < n);
+
+
+        if(index == n-1) {
+                add_right(head,data,data_size);
+                return;
+        }
+
+        node_t *new_node = malloc(sizeof *new_node);
+
+        new_node->data = malloc(data_size);
+        new_node->next = NULL;
+        memcpy(new_node->data,data,data_size);
+
+        node_t *iter = (*head);
+        for(int i=0;i<index;++i) {
+                iter = iter->next;
+        }
+
+        new_node->next = iter->next;
+        iter->next = new_node;
+
+}
