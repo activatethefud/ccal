@@ -306,13 +306,13 @@ int main(int argc, char **argv)
                 mktime(&day_end);
 
                 event day_start_event;
-                day_start_event.event_id = first_free_ID++;
+                day_start_event.event_id = 99998;
                 day_start_event.description = "Day start";
                 day_start_event.start_time = day_start;
                 day_start_event.end_time = day_start;
                 
                 event day_end_event;
-                day_end_event.event_id = first_free_ID++;
+                day_end_event.event_id = 99999;
                 day_end_event.description = "Day end";
                 day_end_event.start_time = day_end;
                 day_end_event.end_time = day_end;
@@ -336,7 +336,16 @@ int main(int argc, char **argv)
                 node_t *ptr1 = events;
                 node_t *ptr2 = events;
 
-                node_t *goals_base = read_goals("/tmp/tmp.Fd09ii10WU/ccal/goals.txt");
+                // Relative to DATA_DIR
+                node_t *goals_base = read_goals("../goals.txt");
+                //
+
+                // Set up comparisons
+                comparison_t *c = malloc(sizeof *c);
+                c->fptr = compare_goals_by_name;
+                comparison_t *c_e = malloc(sizeof *c_e);
+                c_e->fptr = compare_events_by_id;
+                //
 
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
@@ -370,16 +379,10 @@ int main(int argc, char **argv)
 
 			int n = list_size(goals);
 
-                        comparison_t *c = malloc(sizeof *c);
-                        c->fptr = compare_goals_by_name;
-
-                        comparison_t *c_e = malloc(sizeof *c_e);
-                        c_e->fptr = compare_events_by_id;
 			
                         // While goal list is not empty
-                        for(int i=0;i<n;++i) {
+                        while(goals != NULL) {
                                 int choice_index = weighted_choice_goals(goals);
-
                                 goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
 
                                 if(free_time >= choice->duration*3600) {
@@ -406,6 +409,9 @@ int main(int argc, char **argv)
 					}
 
                                 }
+                                else {
+                                        delete_node(&goals,c,choice);
+                                }
 
                                 //delete_node(&goals,c,choice);
 
@@ -417,6 +423,11 @@ int main(int argc, char **argv)
 			delete_list(goals);
 
                 }
+
+                // Remove start and end events
+                delete_node(&events,c_e,get_node_at(events,0)->data);
+                delete_node(&events,c_e,get_node_at(events,list_size(events)-1)->data);
+                //
 		
 		print_list(events,print_event_short);
 
