@@ -157,7 +157,7 @@ void delete_node(node_t **head,comparison_t *c,void *x)
 
                 node_t *iter = (*head);
 
-                for(int i=0;i<index-2;++i) {
+                for(int i=0;i<index-1;++i) {
                         iter = iter->next;
                 }
 

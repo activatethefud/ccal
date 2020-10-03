@@ -100,7 +100,7 @@ void print_goal(void *g)
 {
         goal_t *goal = (goal_t*)g;
 
-        printf("Name: %s\nDuration: %f\nE_val: %lf\nRepeating: %d\n",
+        printf("Name: %s, Duration: %f, E_val: %lf, Repeating: %d\n",
                 goal->name,
                 goal->duration,
                 goal->e_val,
@@ -404,8 +404,8 @@ int main(int argc, char **argv)
                                         ptr1 = ptr1->next;
 
 					if(choice->repeating == 0) {
-						delete_node(&goals_base,c,choice);
 						delete_node(&goals,c,choice);
+						delete_node(&goals_base,c,choice);
 					}
 
                                 }
