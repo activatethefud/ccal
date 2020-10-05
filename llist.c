@@ -135,37 +135,21 @@ void delete_node(node_t **head,comparison_t *c,void *x)
 
                 node_t *tmp = (*head);
                 (*head) = (*head)->next;
-                free_node(tmp);
-        }
-
-        // Delete last node
-        else if(index == n-1) {
-                node_t *iter = (*head);
-
-                for(int i=0;i<n-2;++i) {
-                        iter = iter->next;
-                }
-
-
-                free_node(iter->next);
-                iter->next = NULL;
-        }
-
-
-        // Delete middle node
-        else {
-
-                node_t *iter = (*head);
-
-                for(int i=0;i<index-1;++i) {
-                        iter = iter->next;
-                }
-
-                node_t *tmp = iter->next;
-                iter->next = iter->next->next;
-
                 free(tmp);
         }
+
+        else {
+                node_t *prev = (*head);
+
+                for(int i=0;i<index-1;++i) {
+                        prev = prev->next;
+                }
+
+                node_t *tmp = prev->next;
+                prev->next = prev->next->next;
+                free(tmp);
+        }
+
 }
 
 void delete_list(node_t *head)

@@ -349,30 +349,31 @@ int main(int argc, char **argv)
 
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
-
 			//printf("PTR1:\n");
 			//print_event_short(ptr1->data);
 			//printf("PTR2:\n");
 			//print_event_short(ptr2->data);
 			//printf("ITERATION----\n");
 
-                        double free_time = fabs(
+                        double free_time = 
                                 tm_difftime(
                                         &(((event*)ptr1->data)->end_time),
                                         &(((event*)ptr2->data)->start_time)
-                                        )
-                                );
+                                        );
 
                         if(get_event_id(ptr1) == get_event_id(ptr2)) {
                                 ptr2 = ptr2->next;
                                 continue;
                         }
 
-                        if(free_time == 0) {
+                        if(free_time >= 0) {
                                 ptr1 = ptr1->next;
                                 continue;
                         }
 
+                        // If events are not overlapping
+                        free_time = fabs(free_time);
+                        //
 
                         //node_t *goals = read_goals("/tmp/tmp.Fd09ii10WU/ccal/goals.txt");
 			node_t *goals = copy_list(goals_base);
@@ -413,14 +414,11 @@ int main(int argc, char **argv)
                                         delete_node(&goals,c,choice);
                                 }
 
-                                //delete_node(&goals,c,choice);
-
-
 
                         }
 
 			ptr1 = ptr1->next;
-			delete_list(goals);
+			//delete_list(goals);
 
                 }
 
@@ -431,9 +429,9 @@ int main(int argc, char **argv)
 		
 		print_list(events,print_event_short);
 
-		delete_list(goals_base);
-                delete_list(events);
-                free(date_string);
+		//delete_list(goals_base);
+                //delete_list(events);
+                //free(date_string);
 	}
 	else if(delete_flag) {
 
