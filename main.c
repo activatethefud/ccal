@@ -119,6 +119,10 @@ node_t *read_goals(const char *goal_file)
         node_t *goals = NULL;
 
         while(-1 != getline(&line,&bytes_allocated,input)) {
+                
+                // Skip comments or newlines
+                if(line[0] == '#' || line[0] == '\n') continue;
+
                 goal_t *goal = malloc(sizeof *goal);
 
                 tokenizer_t *t = create_tokenizer(line);
@@ -429,6 +433,16 @@ int main(int argc, char **argv)
 		
 		print_list(events,print_event_short);
 
+                node_t *iter = events;
+
+                while(iter != NULL) {
+                        if(!have_ID[((event*)(iter->data))->event_id]) {
+                                save_event(iter->data);
+                        }
+
+                        iter = iter->next;
+                }
+
 		//delete_list(goals_base);
                 //delete_list(events);
                 //free(date_string);
@@ -526,9 +540,9 @@ int compare_intervals(const void *i1, const void *i2)
 {
 	double diff = tm_difftime(&((interval_t*)i1)->time,&((interval_t*)i2)->time);
 
-	if(diff < 0) { return 1; }
-	else if (diff > 0) { return -1; }
-	return 0;
+        if(diff < 0) return 1;
+        if(diff > 0) return -1;
+        return 0;
 }
 
 
@@ -593,7 +607,7 @@ int compare_chrono_order(const void *e1,const void *e2)
 	event ev1 = *(event*)e1;
 	event ev2 = *(event*)e2;
 
-	time_t diff = tm_difftime(&ev1.start_time,&ev2.start_time);
+	time_t diff = tm_difftime(&ev1.end_time,&ev2.end_time);
 
 	if(diff < 0) { return -1; }
 	else if (diff > 0) { return 1; }
@@ -771,6 +785,20 @@ void event_destructor(void *e)
 status save_event(event *e)
 {
 	int txt_len = 5;
+
+        // Save prompt
+        printf("Save event: ");
+        print_event_long(e);
+        printf("[y/[N]]?: ");
+
+        char *opt = lineread(stdin,"");
+
+        if(opt[0] != 'y') {
+                free(opt);
+                return -1;
+        }
+        free(opt);
+        //
 
 	char *filename = calloc(
 		ilogb(log10(e->event_id + LOG_SAFETY))+1 + txt_len,
