@@ -34,7 +34,7 @@
 #define EVAL_FIELD (2)
 #define REPEAT_FIELD (3)
 
-#define GETOPT_FMT "nd:ptq:w:s:f:"
+#define GETOPT_FMT "nd:ptq:w:s:f:g"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -84,6 +84,324 @@ status skip_date(struct tm date_to_skip,event *e);
 status skip_date_prompt(unsigned event_id,const char *date);
 status delete_event_prompt(unsigned event_id);
 void clear_date(char *date);
+int compare_events_by_id(void *a,void *b);
+int compare_goals_by_name(void *a,void *b);
+int get_event_id(node_t *ptr);
+char *input(const char *prompt);
+node_t *read_goals(const char *goal_file);
+void print_goal(void *g);
+void print_tm(struct tm *time);
+node_t *generate_schedule(char *date_string);
+
+int main(int argc, char **argv)
+{
+	init(DATA_DIR);
+
+	int new_event_flag = 0;
+	int print_flag = 0;
+	int delete_flag = 0;
+	int delete_arg = 0;
+	int test_flag = 0;
+	int query_flag = 0;
+	int week_flag = 0;
+	int skip_flag = 0;
+	int clear_date_flag = 0;
+	int forward_flag = 0;
+	int forward_arg;
+	int generate_flag = 0;
+
+	char* query_arg = NULL;
+
+	int long_opt_index;
+	int option;
+
+	struct option long_options[] = {
+
+		{ "new", no_argument, &new_event_flag, 1 },
+		{ "print", no_argument, &print_flag, 1 },
+		{ "delete", required_argument, &delete_flag, 1 },
+		{ "query", required_argument, &query_flag, 1},
+		{ "clear-date", no_argument, &clear_date_flag, 1},
+		{ "generate", no_argument, &generate_flag, 1 },
+		{ 0, 0, 0, 0 }
+	};
+
+	while(-1 != (option = getopt_long(argc,argv,GETOPT_FMT,long_options,&long_opt_index))) {
+
+		// Long option found
+		if(option == 0) {
+			switch(long_opt_index) {
+				case 2:
+					delete_arg = atoi(optarg);
+					break;
+				case 3:
+					query_arg = optarg;
+					break;
+			}
+		}
+
+		else {
+			switch(option) {
+
+				case 'n':
+					new_event_flag = 1;
+					break;
+				case 'p':
+					print_flag =1;
+					break;
+				case 'd':
+					delete_arg = atoi(optarg);
+					delete_flag = 1;
+					break;
+				case 't':
+					test_flag = 1;
+					break;
+				case 'q':
+					query_flag = 1;
+					query_arg = optarg;
+					break;
+				case 'w':
+					query_arg = optarg;
+					week_flag = 1;
+					break;
+				case 's':
+					skip_flag = atoi(optarg);
+					break;
+				case 'f':
+					forward_flag = 1;
+					forward_arg = atoi(optarg);
+					break;
+				case 'g':
+					generate_flag = 1;
+					break;
+			}
+		}
+	}
+
+	if(skip_flag) {
+
+
+		if(skip_date_prompt(skip_flag,query_arg)) {
+			skip_date(string_to_time(query_arg),&events[skip_flag]);
+			printf("Date skipped.\n");
+		}
+		else {
+			printf("Date not skipped.\n");
+		}
+	}
+	else if(generate_flag) {
+		generate_schedule(input("Date: "));
+	}
+	else if(query_flag && forward_flag) {
+
+		struct tm start_time = string_to_time(query_arg);
+		shift_t shift = daily;
+
+		for(int i=0;i<forward_arg;++i) {
+			answer_query(start_time);
+			shift_time(&start_time,shift,1);
+		}
+	}
+	else if(query_flag && clear_date_flag) {
+		clear_date(query_arg);
+	}
+	else if(query_flag && !skip_flag && !test_flag) {
+		answer_query(string_to_time(query_arg));
+	}
+	else if(week_flag) {
+
+		struct tm start_time = string_to_time(query_arg);
+		shift_t shift = daily;
+
+		for(int i=0;i<7;++i) {
+			answer_query(start_time);
+			shift_time(&start_time,shift,1);
+		}
+
+	}
+        // TEST
+	else if(test_flag) {
+	}
+	else if(delete_flag) {
+
+		if(delete_event_prompt(delete_arg)) {
+			delete_event(delete_arg);
+			printf("Event deleted.\n");
+		}
+		else {
+			printf("Event not deleted.\n");
+		}
+	}
+	else if(new_event_flag) {
+		event new = new_event();
+		save_event(&new);
+		event_destructor(&new);
+	}
+	else if(print_flag) {
+		iterate_events(print_event_long);
+	}
+	else {
+		print_usage();
+	}
+
+
+
+	destructor();
+	return 0;
+}
+
+// END
+
+node_t *generate_schedule(char *date_string)
+{
+                // Set up day start and end events, and add them to the event list
+                struct tm time = string_to_time(date_string);
+
+                struct tm day_start = string_to_time(date_string);
+                struct tm day_end = string_to_time(date_string);
+
+		// No need to free date_string because it's optarg
+		free(date_string);
+
+                day_end.tm_mday++;
+                mktime(&day_end);
+
+                event day_start_event;
+                day_start_event.event_id = 99998;
+                day_start_event.description = "Day start";
+                day_start_event.start_time = day_start;
+                day_start_event.end_time = day_start;
+                
+                event day_end_event;
+                day_end_event.event_id = 99999;
+                day_end_event.description = "Day end";
+                day_end_event.start_time = day_end;
+                day_end_event.end_time = day_end;
+                //
+
+                // Get events on date and convert to linked list
+                event *e_arr;
+                int e_arr_size;
+                get_events_on_date(time,&e_arr,&e_arr_size);
+
+                node_t *events = NULL;
+
+                for(int i=0;i<e_arr_size;++i) {
+                        add_right(&events,e_arr+i,sizeof *(e_arr+i));
+                }
+
+                add_left(&events,&day_start_event,sizeof day_start_event);
+                add_right(&events,&day_end_event,sizeof day_end_event);
+                //
+
+                node_t *ptr1 = events;
+                node_t *ptr2 = events;
+
+                // Relative to DATA_DIR
+                node_t *goals_base = read_goals("../goals.txt");
+                //
+
+                // Set up comparisons
+                comparison_t *c = malloc(sizeof *c);
+                c->fptr = compare_goals_by_name;
+                comparison_t *c_e = malloc(sizeof *c_e);
+                c_e->fptr = compare_events_by_id;
+                //
+
+                // Main loop - while first pointer is not at the end
+                while(get_event_id(ptr1) != day_end_event.event_id) {
+
+                        double free_time = 
+                                tm_difftime(
+                                        &(((event*)ptr1->data)->end_time),
+                                        &(((event*)ptr2->data)->start_time)
+                                        );
+
+                        if(get_event_id(ptr1) == get_event_id(ptr2)) {
+                                ptr2 = ptr2->next;
+                                continue;
+                        }
+
+                        if(free_time >= 0) {
+                                ptr1 = ptr1->next;
+                                continue;
+                        }
+
+                        // If events are not overlapping
+                        free_time = fabs(free_time);
+                        //
+
+			node_t *goals = copy_list(goals_base);
+
+			int n = list_size(goals);
+
+			
+                        // While goal list is not empty
+                        while(goals != NULL) {
+                                int choice_index = weighted_choice_goals(goals);
+                                goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
+
+                                if(free_time >= choice->duration*3600) {
+
+                                        event *new_event = malloc(sizeof *new_event);
+                                        new_event->event_id = first_free_ID++;
+                                        new_event->description = strdup(choice->name);
+					new_event->repeat_mode = 0;
+					new_event->repeat_frequency = 0;
+
+                                        memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
+                                        memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
+                                        new_event->end_time.tm_hour += (int)choice->duration;
+
+                                        int insert_index = find_node_index(events,c_e,ptr1->data);
+
+                                        insert_after(&events,new_event,sizeof *new_event,insert_index);
+
+                                        free_time -= choice->duration*3600;
+                                        ptr1 = ptr1->next;
+
+					if(choice->repeating == 0) {
+						delete_node(&goals,c,choice);
+						delete_node(&goals_base,c,choice);
+					}
+
+                                }
+                                else {
+                                        delete_node(&goals,c,choice);
+                                }
+
+
+                        }
+
+			ptr1 = ptr1->next;
+			//delete_list(goals);
+
+                }
+
+                // Remove start and end events
+                delete_node(&events,c_e,get_node_at(events,0)->data);
+                delete_node(&events,c_e,get_node_at(events,list_size(events)-1)->data);
+                //
+		
+		print_list(events,print_event_short);
+
+                node_t *iter = events;
+
+                while(iter != NULL) {
+                        if(!have_ID[((event*)(iter->data))->event_id]) {
+				print_event_long(iter->data);
+                                save_event(iter->data);
+                        }
+
+                        iter = iter->next;
+                }
+
+		//delete_list(goals_base);
+                //delete_list(events);
+
+		return events;
+}
+
 
 void print_tm(struct tm *time)
 {
@@ -140,6 +458,7 @@ node_t *read_goals(const char *goal_file)
         return goals;
 }
 
+
 char *input(const char *prompt)
 {
         printf("%s",prompt);
@@ -177,303 +496,6 @@ int compare_events_by_id(void *a,void *b)
         return id1 - id2;
 }
 
-int main(int argc, char **argv)
-{
-	init(DATA_DIR);
-
-	int new_event_flag = 0;
-	int print_flag = 0;
-	int delete_flag = 0;
-	int delete_arg = 0;
-	int test_flag = 0;
-	int query_flag = 0;
-	int week_flag = 0;
-	int skip_flag = 0;
-	int clear_date_flag = 0;
-	int forward_flag = 0;
-	int forward_arg;
-
-	char* query_arg = NULL;
-
-	int long_opt_index;
-	int option;
-
-	struct option long_options[] = {
-
-		{ "new", no_argument, &new_event_flag, 1 },
-		{ "print", no_argument, &print_flag, 1 },
-		{ "delete", required_argument, &delete_flag, 1 },
-		{ "query", required_argument, &query_flag, 1},
-		{ "clear-date", no_argument, &clear_date_flag, 1},
-		{ 0, 0, 0, 0 }
-	};
-
-	while(-1 != (option = getopt_long(argc,argv,GETOPT_FMT,long_options,&long_opt_index))) {
-
-		// Long option found
-		if(option == 0) {
-			switch(long_opt_index) {
-				case 2:
-					delete_arg = atoi(optarg);
-					break;
-				case 3:
-					query_arg = optarg;
-					break;
-			}
-		}
-
-		else {
-			switch(option) {
-
-				case 'n':
-					new_event_flag = 1;
-					break;
-				case 'p':
-					print_flag =1;
-					break;
-				case 'd':
-					delete_arg = atoi(optarg);
-					delete_flag = 1;
-					break;
-				case 't':
-					test_flag = 1;
-					break;
-				case 'q':
-					query_flag = 1;
-					query_arg = optarg;
-					break;
-				case 'w':
-					query_arg = optarg;
-					week_flag = 1;
-					break;
-				case 's':
-					skip_flag = atoi(optarg);
-					break;
-				case 'f':
-					forward_flag= 1;
-					forward_arg = atoi(optarg);
-					break;
-			}
-		}
-	}
-
-	if(skip_flag) {
-
-
-		if(skip_date_prompt(skip_flag,query_arg)) {
-			skip_date(string_to_time(query_arg),&events[skip_flag]);
-			printf("Date skipped.\n");
-		}
-		else {
-			printf("Date not skipped.\n");
-		}
-	}
-	else if(query_flag && forward_flag) {
-
-		struct tm start_time = string_to_time(query_arg);
-		shift_t shift = daily;
-
-		for(int i=0;i<forward_arg;++i) {
-			answer_query(start_time);
-			shift_time(&start_time,shift,1);
-		}
-	}
-	else if(query_flag && clear_date_flag) {
-		clear_date(query_arg);
-	}
-	else if(query_flag && !skip_flag) {
-		answer_query(string_to_time(query_arg));
-	}
-	else if(week_flag) {
-
-		struct tm start_time = string_to_time(query_arg);
-		shift_t shift = daily;
-
-		for(int i=0;i<7;++i) {
-			answer_query(start_time);
-			shift_time(&start_time,shift,1);
-		}
-
-	}
-        // TEST
-	else if(test_flag) {
-
-                char *date_string = input("Date: ");
-
-                // Set up day start and end events, and add them to the event list
-                struct tm time = string_to_time(date_string);
-
-                struct tm day_start = string_to_time(date_string);
-                struct tm day_end = string_to_time(date_string);
-
-                day_end.tm_mday++;
-                mktime(&day_end);
-
-                event day_start_event;
-                day_start_event.event_id = 99998;
-                day_start_event.description = "Day start";
-                day_start_event.start_time = day_start;
-                day_start_event.end_time = day_start;
-                
-                event day_end_event;
-                day_end_event.event_id = 99999;
-                day_end_event.description = "Day end";
-                day_end_event.start_time = day_end;
-                day_end_event.end_time = day_end;
-                //
-
-                // Get events on date and convert to linked list
-                event *e_arr;
-                int e_arr_size;
-                get_events_on_date(time,&e_arr,&e_arr_size);
-
-                node_t *events = NULL;
-
-                for(int i=0;i<e_arr_size;++i) {
-                        add_right(&events,e_arr+i,sizeof *(e_arr+i));
-                }
-
-                add_left(&events,&day_start_event,sizeof day_start_event);
-                add_right(&events,&day_end_event,sizeof day_end_event);
-                //
-
-                node_t *ptr1 = events;
-                node_t *ptr2 = events;
-
-                // Relative to DATA_DIR
-                node_t *goals_base = read_goals("../goals.txt");
-                //
-
-                // Set up comparisons
-                comparison_t *c = malloc(sizeof *c);
-                c->fptr = compare_goals_by_name;
-                comparison_t *c_e = malloc(sizeof *c_e);
-                c_e->fptr = compare_events_by_id;
-                //
-
-                // Main loop - while first pointer is not at the end
-                while(get_event_id(ptr1) != day_end_event.event_id) {
-			//printf("PTR1:\n");
-			//print_event_short(ptr1->data);
-			//printf("PTR2:\n");
-			//print_event_short(ptr2->data);
-			//printf("ITERATION----\n");
-
-                        double free_time = 
-                                tm_difftime(
-                                        &(((event*)ptr1->data)->end_time),
-                                        &(((event*)ptr2->data)->start_time)
-                                        );
-
-                        if(get_event_id(ptr1) == get_event_id(ptr2)) {
-                                ptr2 = ptr2->next;
-                                continue;
-                        }
-
-                        if(free_time >= 0) {
-                                ptr1 = ptr1->next;
-                                continue;
-                        }
-
-                        // If events are not overlapping
-                        free_time = fabs(free_time);
-                        //
-
-                        //node_t *goals = read_goals("/tmp/tmp.Fd09ii10WU/ccal/goals.txt");
-			node_t *goals = copy_list(goals_base);
-
-			int n = list_size(goals);
-
-			
-                        // While goal list is not empty
-                        while(goals != NULL) {
-                                int choice_index = weighted_choice_goals(goals);
-                                goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
-
-                                if(free_time >= choice->duration*3600) {
-
-                                        event *new_event = malloc(sizeof *new_event);
-                                        new_event->event_id = first_free_ID++;
-                                        new_event->description = strdup(choice->name);
-
-                                        memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
-                                        memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
-                                        new_event->end_time.tm_hour += (int)choice->duration;
-
-                                        int insert_index = find_node_index(events,c_e,ptr1->data);
-
-                                        insert_after(&events,new_event,sizeof *new_event,insert_index);
-                                        //insert_after(&ptr1,new_event,sizeof *new_event,0);
-
-                                        free_time -= choice->duration*3600;
-                                        ptr1 = ptr1->next;
-
-					if(choice->repeating == 0) {
-						delete_node(&goals,c,choice);
-						delete_node(&goals_base,c,choice);
-					}
-
-                                }
-                                else {
-                                        delete_node(&goals,c,choice);
-                                }
-
-
-                        }
-
-			ptr1 = ptr1->next;
-			//delete_list(goals);
-
-                }
-
-                // Remove start and end events
-                delete_node(&events,c_e,get_node_at(events,0)->data);
-                delete_node(&events,c_e,get_node_at(events,list_size(events)-1)->data);
-                //
-		
-		print_list(events,print_event_short);
-
-                node_t *iter = events;
-
-                while(iter != NULL) {
-                        if(!have_ID[((event*)(iter->data))->event_id]) {
-                                save_event(iter->data);
-                        }
-
-                        iter = iter->next;
-                }
-
-		//delete_list(goals_base);
-                //delete_list(events);
-                //free(date_string);
-	}
-	else if(delete_flag) {
-
-		if(delete_event_prompt(delete_arg)) {
-			delete_event(delete_arg);
-			printf("Event deleted.\n");
-		}
-		else {
-			printf("Event not deleted.\n");
-		}
-	}
-	else if(new_event_flag) {
-		event new = new_event();
-		save_event(&new);
-		event_destructor(&new);
-	}
-	else if(print_flag) {
-		iterate_events(print_event_long);
-	}
-	else {
-		print_usage();
-	}
-
-
-
-	destructor();
-	return 0;
-}
 
 void clear_date(char *date)
 {
@@ -763,6 +785,7 @@ void print_usage()
 	printf("Usage:\n"
 		"    -n --new - Add new event\n"
 		"    -p - Print all events\n"
+		"    -g --generate - Generate schedule\n"
 		"    -d --delete <id> - Delete event with ID <id>\n"
 		"    -q --query <date> - Query events on <date>\n"
 		"    -w <date> - Print week's worth of events from <date>\n"
