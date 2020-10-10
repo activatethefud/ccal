@@ -584,11 +584,11 @@ status skip_date_prompt(unsigned event_id,const char *date)
 	print_event_long(events + event_id);
 	printf("On date %s\n",date);
 	                                    
-	char opt;
-	printf("[y/[N]]?: ");
-	scanf("%c",&opt);
+        char *opt = lineread(stdin,"[y/[N]]?: ");
 
-	return opt == 'y';
+        int yes = opt[0] == 'y';
+        free(opt);
+        return yes;
 }
 
 status skip_date(struct tm date_to_skip,event *e)
