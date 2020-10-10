@@ -93,6 +93,29 @@ void print_goal(void *g);
 void print_tm(struct tm *time);
 node_t *generate_schedule(char *date_string);
 
+int contains(event *e1, event *e2)
+{
+        int result = tm_difftime(&e1->start_time,&e2->start_time) < 0 &&
+               tm_difftime(&e1->end_time,&e2->end_time) > 0;
+        return result;
+}
+
+int compare_chrono_order_endtime(void *e1,void *e2)
+{
+        event *ev1 = (event*)e1;
+        event *ev2 = (event*)e2;
+
+        return tm_difftime(&ev1->end_time,&ev2->end_time);
+}
+
+void float_to_tm(float time,struct tm *t)
+{
+        t->tm_hour += (int)floorf(time);
+        t->tm_min += (int)floorf(60*(time-floor(time)));
+        mktime(t);
+}
+
+
 int main(int argc, char **argv)
 {
 	init(DATA_DIR);
@@ -285,10 +308,29 @@ node_t *generate_schedule(char *date_string)
                 get_events_on_date(time,&e_arr,&e_arr_size);
 
                 node_t *events = NULL;
-
-                for(int i=0;i<e_arr_size;++i) {
+                
+                // Array to linked list, skip overlapped events
+                int i=0;
+                while(i<e_arr_size) {
+                        
                         add_right(&events,e_arr+i,sizeof *(e_arr+i));
+                        
+                        int j=i+1;
+                        // Check for overlap to skip adding event to linked list
+                        while(j<e_arr_size && contains(e_arr+i,e_arr+j)) {
+                                ++j;
+                        }
+                        //
+                        i=j;
                 }
+
+                // TEST
+                // Sort by endtime for easier event fitting
+                comparison_t *c_endtime = malloc(sizeof *c_endtime);
+                c_endtime->fptr = compare_chrono_order_endtime;
+                sort_list(events,c_endtime);
+                free(c_endtime);
+                //
 
                 add_left(&events,&day_start_event,sizeof day_start_event);
                 add_right(&events,&day_end_event,sizeof day_end_event);
@@ -311,10 +353,13 @@ node_t *generate_schedule(char *date_string)
                 // Main loop - while first pointer is not at the end
                 while(get_event_id(ptr1) != day_end_event.event_id) {
 
+                        event *e1 = (event*)ptr1->data;
+                        event *e2 = (event*)ptr2->data;
+
                         double free_time = 
                                 tm_difftime(
-                                        &(((event*)ptr1->data)->end_time),
-                                        &(((event*)ptr2->data)->start_time)
+                                        &(e1->end_time),
+                                        &(e2->start_time)
                                         );
 
                         if(get_event_id(ptr1) == get_event_id(ptr2)) {
@@ -335,7 +380,6 @@ node_t *generate_schedule(char *date_string)
 
 			int n = list_size(goals);
 
-			
                         // While goal list is not empty
                         while(goals != NULL) {
                                 int choice_index = weighted_choice_goals(goals);
@@ -351,7 +395,8 @@ node_t *generate_schedule(char *date_string)
 
                                         memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
                                         memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
-                                        new_event->end_time.tm_hour += (int)choice->duration;
+                                        //new_event->end_time.tm_hour += (int)choice->duration;
+                                        float_to_tm(choice->duration,&new_event->end_time);
 
                                         int insert_index = find_node_index(events,c_e,ptr1->data);
 
@@ -399,6 +444,8 @@ node_t *generate_schedule(char *date_string)
 		//delete_list(goals_base);
                 //delete_list(events);
 
+                free(c);
+                free(c_e);
 		return events;
 }
 
@@ -629,7 +676,8 @@ int compare_chrono_order(const void *e1,const void *e2)
 	event ev1 = *(event*)e1;
 	event ev2 = *(event*)e2;
 
-	time_t diff = tm_difftime(&ev1.end_time,&ev2.end_time);
+	//time_t diff = tm_difftime(&ev1.end_time,&ev2.end_time);
+	time_t diff = tm_difftime(&ev1.start_time,&ev2.start_time);
 
 	if(diff < 0) { return -1; }
 	else if (diff > 0) { return 1; }

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #ifndef LLIST_H
 #define LLIST_H
@@ -20,5 +21,6 @@ void add_left(node_t **head,void *new_data,size_t data_size);
 void insert_after(node_t **head,void *data,size_t data_size,int index);
 int list_size(node_t *head);
 node_t *copy_list(node_t *list);
+void sort_list(node_t *list,comparison_t *c);
 
 #endif

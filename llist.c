@@ -207,3 +207,35 @@ node_t *copy_list(node_t *list)
 
 	return copy;
 }
+
+void sort_list(node_t *list,comparison_t *c)
+{
+        int n = list_size(list);
+
+        for(int i=0;i<n;++i) {
+
+                node_t *ptr1 = list;
+                node_t *ptr2 = ptr1->next;
+
+                bool swapped = false;
+
+                for(int j=i+1;j<n-i;++j) {
+                        c->a = ptr1->data;
+                        c->b = ptr2->data;
+
+                        if(compare(c) > 0) {
+                                void *tmp = ptr1->data;
+                                ptr1->data = ptr2->data;
+                                ptr2->data = tmp;
+
+                                swapped = true;
+                        }
+
+                        ptr2 = ptr2->next;
+                }
+
+                if(!swapped) {
+                        return;
+                }
+        }
+}
