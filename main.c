@@ -324,7 +324,6 @@ node_t *generate_schedule(char *date_string)
                         i=j;
                 }
 
-                // FEAT
                 // Sort by endtime for easier event fitting
                 comparison_t *c_endtime = malloc(sizeof *c_endtime);
                 c_endtime->fptr = compare_chrono_order_endtime;
@@ -348,6 +347,24 @@ node_t *generate_schedule(char *date_string)
                 c->fptr = compare_goals_by_name;
                 comparison_t *c_e = malloc(sizeof *c_e);
                 c_e->fptr = compare_events_by_id;
+                //
+
+                // FEAT
+                // From goals delete those already scheduled on working date, provided the goal does not repeat
+                node_t *_iter = events;
+                while(_iter != NULL) {
+                        goal_t *g = malloc(sizeof *g);
+                        g->name = ((event*)_iter->data)->description;
+
+                        node_t *found = find_node(goals_base,c,g);
+
+                        if(NULL != found) {
+                                delete_node(&goals_base,c,(goal_t*)found->data);
+                        }
+
+                        free(g);
+                        _iter = _iter->next;
+                }
                 //
 
                 // Main loop - while first pointer is not at the end
