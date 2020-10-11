@@ -210,32 +210,25 @@ node_t *copy_list(node_t *list)
 
 void sort_list(node_t *list,comparison_t *c)
 {
-        int n = list_size(list);
+        bool swapped = true;
 
-        for(int i=0;i<n;++i) {
+        while(swapped) {
 
-                node_t *ptr1 = list;
-                node_t *ptr2 = ptr1->next;
+                node_t *iter = list;
+                swapped = false;
 
-                bool swapped = false;
-
-                for(int j=i+1;j<n-i;++j) {
-                        c->a = ptr1->data;
-                        c->b = ptr2->data;
+                while(iter->next != NULL) {
+                        c->a = iter->data;
+                        c->b = iter->next->data;
 
                         if(compare(c) > 0) {
-                                void *tmp = ptr1->data;
-                                ptr1->data = ptr2->data;
-                                ptr2->data = tmp;
-
+                                void *tmp = iter->data;
+                                iter->data = iter->next->data;
+                                iter->next->data = tmp;
                                 swapped = true;
                         }
-
-                        ptr2 = ptr2->next;
-                }
-
-                if(!swapped) {
-                        return;
+                        
+                        iter = iter->next;
                 }
         }
 }

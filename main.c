@@ -324,7 +324,7 @@ node_t *generate_schedule(char *date_string)
                         i=j;
                 }
 
-                // TEST
+                // FEAT
                 // Sort by endtime for easier event fitting
                 comparison_t *c_endtime = malloc(sizeof *c_endtime);
                 c_endtime->fptr = compare_chrono_order_endtime;
@@ -553,7 +553,11 @@ void clear_date(char *date)
 
 	for(int i=0;i<arr_size;++i) {
 
-		if(skip_date_prompt(arr[i].event_id,date)) {
+                if(arr[i].repeat_mode == 0 && delete_event_prompt(arr[i].event_id)) {
+                        delete_event(arr[i].event_id);
+                }
+
+		if(arr[i].repeat_mode != 0 && skip_date_prompt(arr[i].event_id,date)) {
 			skip_date(string_to_time(date),arr + i);
 		}
 	}
@@ -570,10 +574,11 @@ status delete_event_prompt(unsigned event_id)
 		print_event_long(events + event_id);
 		printf("[y/[N]]?: ");
 
-		char opt;
-		scanf("%c",&opt);
+		char *opt = lineread(stdin,"");
+                int result = opt[0] == 'y';
 
-		return opt == 'y';
+                free(opt);
+                return result;
 }
 
 status skip_date_prompt(unsigned event_id,const char *date)
