@@ -409,6 +409,7 @@ node_t *generate_schedule(char *date_string)
                                         new_event->description = strdup(choice->name);
 					new_event->repeat_mode = 0;
 					new_event->repeat_frequency = 0;
+                                        new_event->num_of_skipped_dates = 0;
 
                                         memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
                                         memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
@@ -800,7 +801,7 @@ event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_boun
 
 	if(event_is_skipped(e,lower_bound)) return NULL;
 
-	event *e_cpy = malloc(sizeof *e);
+	event *e_cpy = malloc(sizeof *e_cpy);
 	Assert(NULL != memcpy(e_cpy,e,sizeof *e),"Error copying struct");
 
 	while(tm_difftime(&e_cpy->start_time,upper_bound) < 0) {
@@ -827,6 +828,8 @@ event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_boun
 time_t shift_time(struct tm *time,shift_t shift,int by_amount)
 {
 
+        time->tm_isdst = -1;
+
 	switch(shift) {
 		case daily:
 			time->tm_mday += by_amount;
@@ -846,6 +849,7 @@ time_t shift_time(struct tm *time,shift_t shift,int by_amount)
 
 	time_t shifted_Epoch;
 	Assert(-1 != (shifted_Epoch = mktime(time)),"Error shifting time");
+        time->tm_isdst = -1;
 
 	return shifted_Epoch;
 }
@@ -893,10 +897,12 @@ status save_event(event *e)
         free(opt);
         //
 
-	char *filename = calloc(
-		ilogb(log10(e->event_id + LOG_SAFETY))+1 + txt_len,
-		sizeof *filename
-		);
+	//char *filename = calloc(
+	//	ilogb(log10(e->event_id + LOG_SAFETY))+1 + txt_len,
+	//	sizeof *filename
+	//	);
+
+        char filename[100];
 
 	Assert(NULL != filename,"Error allocating space for file name");
 
@@ -931,7 +937,7 @@ status save_event(event *e)
 	}
 
 	fclose(output_file);
-	free(filename);
+	//free(filename);
 	return 0;
 }
 
@@ -1206,7 +1212,8 @@ status destructor()
 status init(const char *data_dir)
 {
 	// Set timezone from system timezone
-	tzset();
+	//tzset();
+        //setenv("TZ","GMT+2",1);
 
         // Set random seed
         srand(time(NULL));
@@ -1216,8 +1223,7 @@ status init(const char *data_dir)
 
 	iterate_directory(data_dir,set_max_ID);
 
-	have_ID = calloc(max_ID+1,sizeof *have_ID);
-	memset(have_ID,0,max_ID+1);
+	have_ID = calloc(max_ID+50,sizeof *have_ID);
 
 	load_events(data_dir);
 
