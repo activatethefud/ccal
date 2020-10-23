@@ -1351,8 +1351,8 @@ char *concat(char *str1,char *str2)
         int n2 = strlen(str2);
 
         char *tmp = malloc(n1+1 + n2+1);
-        strcpy(tmp,str1);
-        strcat(tmp,str2);
+        strncpy(tmp,str1,n1);
+        strncat(tmp,str2,n2);
         return tmp;
 }
 
