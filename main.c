@@ -493,7 +493,13 @@ void print_goal(void *g)
 node_t *read_goals(const char *goal_file)
 {
         FILE *input = fopen(goal_file,"r");
-        Assert(NULL != input,"Error opening goals file");
+
+        if(NULL == input) {
+                input = fopen(goal_file,"w");
+                fprintf(input,"# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1)");
+                fclose(input);
+                Assert(0,"Error opening goals file. Creating goals.txt in data directory.");
+        }
 
         char *line = NULL;
         size_t bytes_allocated = 0;
@@ -1349,3 +1355,10 @@ char *concat(char *str1,char *str2)
         strcat(tmp,str2);
         return tmp;
 }
+
+/* TODO
+- swap arrays with llist
+- export to .ics
+- odvojiti answer_query na delove
+- napraviti main.h
+*/
