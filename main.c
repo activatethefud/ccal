@@ -18,7 +18,6 @@
 #include "random.h"
 
 #define DATE_FMT "%d/%m/%Y"
-#define DATA_DIR "/home/nikola/.config/ccal/events"
 
 #define Assert(cond,msg) Error(cond,msg,__FILE__,__LINE__)
 #define UNUSED(x) (void)(x)
@@ -52,7 +51,7 @@ static unsigned first_free_ID = 1;
 static small_int *have_ID;
 event* events;
 
-char *concat(char *str1,char *str2);
+char *concat(const char *str1,const char *str2);
 status iterate_directory(const char *dirname,void* (*func)(void*));
 status init();
 status destructor();
@@ -1147,14 +1146,18 @@ void* filename_new_event(void *arg)
 	Assert(-1 != validate_chrono_order(&new_event.start_time,&new_event.end_time),
 		"End time before start time");
 
+        int tmp_enum;
+
 	// Repeat mode
 	tmp = lineread(event_file,NULL);
-	sscanf(tmp,"%d",&(new_event.repeat_mode));
+	sscanf(tmp,"%d",&tmp_enum);
+        new_event.repeat_mode = tmp_enum;
 	free(tmp);
 
 	// Repeat frequency
 	tmp = lineread(event_file,NULL);
-	sscanf(tmp,"%d",&(new_event.repeat_frequency));
+	sscanf(tmp,"%d",&tmp_enum);
+        new_event.repeat_frequency = tmp_enum;
 	free(tmp);
 
 	// Skipped dates count
@@ -1191,7 +1194,7 @@ void* filename_new_event(void *arg)
 char* lineread(FILE *stream,const char *prompt)
 {
 	if(NULL != prompt) {
-		printf(prompt);
+		printf("%s",prompt);
 	}
 
 	char *line = NULL;
@@ -1232,8 +1235,11 @@ status init()
         // Set random seed
         srand(time(NULL));
 	
-	// Change working directory to data_dir
-	Assert(-1 != chdir(data_dir),"Error changing directory");
+	// Change working directory to data_dir, and create if missing
+        if(-1 == chdir(data_dir)) {
+                system(concat("mkdir -p ",data_dir));
+                Assert(0,"Data dir missing. Creating now.");
+        }
 
 	iterate_directory("events",set_max_ID);
 	have_ID = calloc(max_ID+50,sizeof *have_ID);
@@ -1262,7 +1268,11 @@ status init()
 status iterate_directory(const char *dirname,void* (*func)(void*))
 {
 	DIR *data = opendir(dirname);
-	Assert(NULL != data,"Error opening directory.");
+
+        if(NULL == data) {
+                Assert(-1 != system(concat("mkdir ",dirname)),"Error making directory");
+                Assert(0,"Error opening directory. Creating now");
+        }
         Assert(-1 != chdir(dirname),"Error changing directory.");
 
 	errno = 0;
@@ -1345,7 +1355,7 @@ void* set_max_ID(void *arg)
 	max_ID = max(max_ID,id);
 }
 
-char *concat(char *str1,char *str2)
+char *concat(const char *str1,const char *str2)
 {
         int n1 = strlen(str1);
         int n2 = strlen(str2);

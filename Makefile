@@ -1,5 +1,5 @@
 ccal: main.o llist.o tokenizer.o random.o
-	gcc -Wall -Wextra -lm -o ccal main.o llist.o tokenizer.o random.o
+	gcc -o ccal main.o llist.o tokenizer.o random.o -Wall -Wextra -lm 
 
 main.o:
 llist.o:
