@@ -52,8 +52,9 @@ static unsigned first_free_ID = 1;
 static small_int *have_ID;
 event* events;
 
+char *concat(char *str1,char *str2);
 status iterate_directory(const char *dirname,void* (*func)(void*));
-status init(const char *data_dir);
+status init();
 status destructor();
 void event_destructor(void *e);
 status load_events(const char *data_dir);
@@ -72,7 +73,7 @@ double tm_difftime(struct tm *time1, struct tm *time2);
 status save_event(event *e);
 void print_usage();
 time_t shift_time(struct tm *time,shift_t shift,int by_amount);
-event* event_on_date(const event *e,struct tm *lower_bound, struct tm *upper_bound);
+node_t* event_on_date(const event *e,struct tm *lower_bound, struct tm *upper_bound);
 event* get_events_on_date(const struct tm time,event** arr,int *arr_size);
 bool event_is_skiped(const event *e,struct tm *date);
 struct tm* tm_max(struct tm *time1, struct tm *time2);
@@ -114,11 +115,9 @@ void float_to_tm(float time,struct tm *t)
         t->tm_min += (int)floorf(60*(time-floor(time)));
         mktime(t);
 }
-
-
 int main(int argc, char **argv)
 {
-	init(DATA_DIR);
+	init();
 
 	int new_event_flag = 0;
 	int print_flag = 0;
@@ -244,6 +243,7 @@ int main(int argc, char **argv)
 	}
         // TEST
 	else if(test_flag) {
+                puts(concat("Ayy","Lmao"));
 	}
 	else if(delete_flag) {
 
@@ -338,8 +338,8 @@ node_t *generate_schedule(char *date_string)
                 node_t *ptr1 = events;
                 node_t *ptr2 = events;
 
-                // Relative to DATA_DIR
-                node_t *goals_base = read_goals("../goals.txt");
+                // Relative to data directory
+                node_t *goals_base = read_goals("goals.txt");
                 //
 
                 // Set up comparisons
@@ -493,8 +493,7 @@ void print_goal(void *g)
 node_t *read_goals(const char *goal_file)
 {
         FILE *input = fopen(goal_file,"r");
-
-        Assert(NULL != input,"Error opening file");
+        Assert(NULL != input,"Error opening goals file");
 
         char *line = NULL;
         size_t bytes_allocated = 0;
@@ -722,16 +721,17 @@ event* get_events_on_date(const struct tm time,event** arr,int *arr_size)
 
 	for(unsigned i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
-			event *ev = event_on_date(events+i,&lower_bound,&upper_bound);
+			node_t *ev = event_on_date(events+i,&lower_bound,&upper_bound);
 
-			if(NULL != ev) {
+			while(NULL != ev) {
 				// Realloc if needed
 				if(*arr_size == arr_allocated) {
 					arr_allocated *= 2;
 					Assert(NULL != ((*arr) = realloc((*arr),arr_allocated * sizeof(**arr))),"Realloc failed");
 				}
 				
-				(*arr)[(*arr_size)++] = *ev;
+				(*arr)[(*arr_size)++] = *(event*)ev->data;
+                                ev = ev->next;
 			}
 		}
 	}
@@ -796,9 +796,10 @@ struct tm* tm_max(struct tm *time1, struct tm *time2)
 }
 
 
-event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_bound)
+node_t* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_bound)
 {
 
+        node_t* events = NULL;
 	if(event_is_skipped(e,lower_bound)) return NULL;
 
 	event *e_cpy = malloc(sizeof *e_cpy);
@@ -809,20 +810,25 @@ event* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_boun
 		// Intersection
 		if(!(tm_difftime(&e_cpy->end_time,lower_bound) < 0)) {
 
-			e_cpy->start_time = *(tm_max(lower_bound,&e_cpy->start_time));
-			e_cpy->end_time = *(tm_min(upper_bound,&e_cpy->end_time));
-			return e_cpy;
-		}
+                        event *new_event = malloc(sizeof *new_event);
+	                Assert(NULL != memcpy(new_event,e_cpy,sizeof *e_cpy),"Error copying struct");
+			new_event->start_time = *(tm_max(lower_bound,&new_event->start_time));
+			new_event->end_time = *(tm_min(upper_bound,&new_event->end_time));
+                        add_right(&events,new_event,sizeof *new_event);
 
+                        free(new_event);
+
+		}
 		// Break if event not repeating
 		if(e->repeat_mode == none) break;
 
-		shift_time(&e_cpy->start_time,e->repeat_mode,e->repeat_frequency);
-		shift_time(&e_cpy->end_time,e->repeat_mode,e->repeat_frequency);
+	        shift_time(&e_cpy->start_time,e->repeat_mode,e->repeat_frequency);
+	        shift_time(&e_cpy->end_time,e->repeat_mode,e->repeat_frequency);
+
 	}
 
 	free(e_cpy);
-	return NULL;
+        return events;
 }
 
 time_t shift_time(struct tm *time,shift_t shift,int by_amount)
@@ -881,6 +887,7 @@ void event_destructor(void *e)
 
 status save_event(event *e)
 {
+        Assert(-1 != chdir("events"),"Error changing directory.");
 	int txt_len = 5;
 
         // Save prompt
@@ -938,6 +945,7 @@ status save_event(event *e)
 
 	fclose(output_file);
 	//free(filename);
+        Assert(-1 != chdir(".."),"Error changing directory.");
 	return 0;
 }
 
@@ -1209,11 +1217,11 @@ status destructor()
 	free(events);
 }
 
-status init(const char *data_dir)
+status init()
 {
-	// Set timezone from system timezone
-	//tzset();
-        //setenv("TZ","GMT+2",1);
+        // Set data directory
+        char *data_dir = concat("/home/",concat(getenv("USER"),"/.config/ccal"));
+        char *events_dir = concat(data_dir,"/events");
 
         // Set random seed
         srand(time(NULL));
@@ -1221,11 +1229,10 @@ status init(const char *data_dir)
 	// Change working directory to data_dir
 	Assert(-1 != chdir(data_dir),"Error changing directory");
 
-	iterate_directory(data_dir,set_max_ID);
-
+	iterate_directory("events",set_max_ID);
 	have_ID = calloc(max_ID+50,sizeof *have_ID);
 
-	load_events(data_dir);
+	load_events("events");
 
 	for(int i=1;i<=max_ID;++i) {
 		if(have_ID[i] == 0) {
@@ -1241,6 +1248,8 @@ status init(const char *data_dir)
 		first_free_ID = max_ID + 1;
 	}
 
+        free(data_dir);
+
 	return 0;
 }
 
@@ -1248,6 +1257,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 {
 	DIR *data = opendir(dirname);
 	Assert(NULL != data,"Error opening directory.");
+        Assert(-1 != chdir(dirname),"Error changing directory.");
 
 	errno = 0;
 	struct dirent *iterator;
@@ -1265,6 +1275,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 
 	Assert(0 == errno,"Error reading directory");
 	Assert(-1 != closedir(data),"Error closing directory");
+        Assert(-1 != chdir(".."),"Error changing directory.");
 	return 0;
 }
 
@@ -1326,4 +1337,15 @@ void* set_max_ID(void *arg)
 {
 	unsigned id = atoi((char*)arg);
 	max_ID = max(max_ID,id);
+}
+
+char *concat(char *str1,char *str2)
+{
+        int n1 = strlen(str1);
+        int n2 = strlen(str2);
+
+        char *tmp = malloc(n1+1 + n2+1);
+        strcpy(tmp,str1);
+        strcat(tmp,str2);
+        return tmp;
 }

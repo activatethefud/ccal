@@ -22,14 +22,12 @@ double sum(double *arr,int n)
 int weighted_choice(double *weights,int n)
 {
 	double choice = uniform()*sum(weights,n);
+	double acc;
+	int i;
 
-	double acc = 0;
-	int i = 0;
-
-	while(acc < choice) {
+        for(i=0,acc=0;acc < choice;++i) {
 		acc += weights[i];
-		++i;
-	}
+        }
 
 	return i-1;
 }
