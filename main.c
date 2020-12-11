@@ -13,8 +13,8 @@
 #include <math.h>
 #include <getopt.h>
 #include <stdbool.h>
-#include "llist.h"
-#include "tokenizer.h"
+#include <llist.h>
+#include <tokenizer.h>
 #include "random.h"
 
 #define DATE_FMT "%d/%m/%Y"
@@ -32,6 +32,8 @@
 #define DURATION_FIELD (1)
 #define EVAL_FIELD (2)
 #define REPEAT_FIELD (3)
+#define LOWERBOUND_FIELD (4)
+#define UPPERBOUND_FIELD (5)
 
 #define GETOPT_FMT "nd:ptq:w:s:f:g"
 
@@ -285,7 +287,9 @@ node_t *generate_schedule(char *date_string)
 		// No need to free date_string because it's optarg
 		free(date_string);
 
-                day_end.tm_mday++;
+                //day_end.tm_mday++;
+                day_end.tm_hour += 23;
+                day_end.tm_min += 59;
                 mktime(&day_end);
 
                 event day_start_event;
@@ -339,6 +343,7 @@ node_t *generate_schedule(char *date_string)
 
                 // Relative to data directory
                 node_t *goals_base = read_goals("goals.txt");
+                print_list(goals_base,print_goal);
                 //
 
                 // Set up comparisons
@@ -393,13 +398,40 @@ node_t *generate_schedule(char *date_string)
                         //
 
 			node_t *goals = copy_list(goals_base);
-
 			int n = list_size(goals);
 
+                        
                         // While goal list is not empty
                         while(goals != NULL) {
+                                e1 = (event*)ptr1->data;
+
+                                // Delete all goals not withing time bounds
+                                // NEW
+                                {
+                                        node_t *iter = goals;
+                                        while(iter != NULL) {
+
+                                                goal_t *goal = (goal_t*)iter->data;
+
+                                                print_event_long(e1);
+                                                print_event_long(e2);
+                                                print_goal(goal);
+
+                                                bool lower_check = e1->end_time.tm_hour >= goal->lower_bound.tm_hour && e1->end_time.tm_min >= goal->lower_bound.tm_min;
+                                                bool upper_check = e2->start_time.tm_hour >= goal->upper_bound.tm_hour && e2->start_time.tm_min >= goal->upper_bound.tm_min;
+
+
+                                                printf("%d %d\n",lower_check,upper_check);
+                                                if(!(lower_check && upper_check)) {
+                                                        delete_node(&goals,c,goal);
+                                                }
+                                                iter = iter->next;
+                                        }
+                                }
+                                //
                                 int choice_index = weighted_choice_goals(goals);
                                 goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
+
 
                                 if(free_time >= choice->duration*3600) {
 
@@ -420,12 +452,14 @@ node_t *generate_schedule(char *date_string)
                                         insert_after(&events,new_event,sizeof *new_event,insert_index);
 
                                         free_time -= choice->duration*3600;
-                                        ptr1 = ptr1->next;
+                                        //ptr1 = ptr1->next;
 
 					if(choice->repeating == 0) {
 						delete_node(&goals,c,choice);
 						delete_node(&goals_base,c,choice);
 					}
+
+                                        break;
 
                                 }
                                 else {
@@ -482,11 +516,13 @@ void print_goal(void *g)
 {
         goal_t *goal = (goal_t*)g;
 
-        printf("Name: %s, Duration: %f, E_val: %lf, Repeating: %d\n",
+        printf("Name: %s, Duration: %f, E_val: %lf, Repeating: %d, Lower bound: %f, Upper bound: %f\n",
                 goal->name,
                 goal->duration,
                 goal->e_val,
-		goal->repeating);
+		goal->repeating,
+                1.0*goal->lower_bound.tm_hour + 0.01*goal->lower_bound.tm_min,
+                1.0*goal->upper_bound.tm_hour + 0.01*goal->upper_bound.tm_min);
 }
 
 node_t *read_goals(const char *goal_file)
@@ -495,7 +531,7 @@ node_t *read_goals(const char *goal_file)
 
         if(NULL == input) {
                 input = fopen(goal_file,"w");
-                fprintf(input,"# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1)");
+                fprintf(input,"# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1),Lower Bound(float)(time),Upper Bound(float)(time)");
                 fclose(input);
                 Assert(0,"Error opening goals file. Creating goals.txt in data directory.");
         }
@@ -512,12 +548,23 @@ node_t *read_goals(const char *goal_file)
 
                 goal_t *goal = malloc(sizeof *goal);
 
-                tokenizer_t *t = create_tokenizer(line);
+                tokenizer_t *t = create_tokenizer(line,",");
 
                 goal->name = tokenizer_get(t,NAME_FIELD);
                 goal->duration = strtof(tokenizer_get(t,DURATION_FIELD),NULL);
                 goal->e_val = strtod(tokenizer_get(t,EVAL_FIELD),NULL);
 		goal->repeating = strtol(tokenizer_get(t,REPEAT_FIELD),NULL,10);
+
+                // read bounds
+                goal->lower_bound.tm_sec = 0;
+                goal->lower_bound.tm_min = 0;
+                goal->lower_bound.tm_hour = 0;
+                float_to_tm(strtof(tokenizer_get(t,LOWERBOUND_FIELD),NULL),&goal->lower_bound);
+
+                goal->upper_bound.tm_sec = 0;
+                goal->upper_bound.tm_min = 0;
+                goal->upper_bound.tm_hour = 0;
+                float_to_tm(strtof(tokenizer_get(t,UPPERBOUND_FIELD),NULL),&goal->upper_bound);
 
                 add_right(&goals,goal,sizeof *goal);
 
@@ -983,7 +1030,9 @@ status delete_event(unsigned id_to_delete)
 	char filename[ilogb(log10(id_to_delete + LOG_SAFETY))+1 + txt_len];
 	sprintf(filename,"%u.txt",id_to_delete);
 
+        Assert(-1 != chdir("events"),"Error changing directory!");
 	Assert(-1 != unlink(filename),"Error while removing event file");
+        Assert(-1 != chdir(".."),"Error returning from directory");
 	return 0;
 }
 
