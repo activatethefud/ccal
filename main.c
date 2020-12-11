@@ -116,6 +116,17 @@ void float_to_tm(float time,struct tm *t)
         t->tm_min += (int)floorf(60*(time-floor(time)));
         mktime(t);
 }
+
+int compare_24h(struct tm *t1,struct tm *t2)
+{
+        int time1 = 100 * t1->tm_hour + t1->tm_min;
+        int time2 = 100 * t2->tm_hour + t2->tm_min;
+
+        if(time1 < time2) return -1;
+        if(time1 > time2) return 1;
+        return 0;
+}
+
 int main(int argc, char **argv)
 {
 	init();
@@ -400,46 +411,44 @@ node_t *generate_schedule(char *date_string)
 			node_t *goals = copy_list(goals_base);
 			int n = list_size(goals);
 
-                        
-                        // While goal list is not empty
-                        while(goals != NULL) {
-                                e1 = (event*)ptr1->data;
+                        // Delete all goals not withing time bounds
+                        // NEW
+                        {
+                                node_t *iter = goals;
+                                while(iter != NULL) {
 
-                                // Delete all goals not withing time bounds
-                                // NEW
-                                {
-                                        node_t *iter = goals;
-                                        while(iter != NULL) {
+                                        goal_t *goal = (goal_t*)iter->data;
 
-                                                goal_t *goal = (goal_t*)iter->data;
+                                        print_event_long(e1);
+                                        print_event_long(e2);
+                                        print_goal(goal);
 
-                                                print_event_long(e1);
-                                                print_event_long(e2);
-                                                print_goal(goal);
+                                        bool lower_check = compare_24h(&e1->end_time,&goal->lower_bound) >= 0;
+                                        struct tm upper_bound = e1->end_time;
+                                        float_to_tm(goal->duration,&upper_bound);
 
-                                                bool lower_check = e1->end_time.tm_hour >= goal->lower_bound.tm_hour && e1->end_time.tm_min >= goal->lower_bound.tm_min;
-                                                bool upper_check = e2->start_time.tm_hour >= goal->upper_bound.tm_hour && e2->start_time.tm_min >= goal->upper_bound.tm_min;
+                                        bool upper_check = compare_24h(&upper_bound,&goal->upper_bound) <= 0;
 
-
-                                                printf("%d %d\n",lower_check,upper_check);
-                                                if(!(lower_check && upper_check)) {
-                                                        delete_node(&goals,c,goal);
-                                                }
-                                                iter = iter->next;
+                                        printf("%d %d\n",lower_check,upper_check);
+                                        if(!(lower_check && upper_check)) {
+                                                delete_node(&goals,c,goal);
                                         }
+                                        iter = iter->next;
                                 }
-                                //
+                        }
+                        //
+
+                        while(goals != NULL) {
                                 int choice_index = weighted_choice_goals(goals);
                                 goal_t *choice = (goal_t*)(get_node_at(goals,choice_index)->data);
-
 
                                 if(free_time >= choice->duration*3600) {
 
                                         event *new_event = malloc(sizeof *new_event);
                                         new_event->event_id = first_free_ID++;
                                         new_event->description = strdup(choice->name);
-					new_event->repeat_mode = 0;
-					new_event->repeat_frequency = 0;
+			        	new_event->repeat_mode = 0;
+			        	new_event->repeat_frequency = 0;
                                         new_event->num_of_skipped_dates = 0;
 
                                         memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
@@ -452,12 +461,11 @@ node_t *generate_schedule(char *date_string)
                                         insert_after(&events,new_event,sizeof *new_event,insert_index);
 
                                         free_time -= choice->duration*3600;
-                                        //ptr1 = ptr1->next;
 
-					if(choice->repeating == 0) {
-						delete_node(&goals,c,choice);
-						delete_node(&goals_base,c,choice);
-					}
+			        	if(choice->repeating == 0) {
+			        		delete_node(&goals,c,choice);
+			        		delete_node(&goals_base,c,choice);
+			        	}
 
                                         break;
 
@@ -465,8 +473,6 @@ node_t *generate_schedule(char *date_string)
                                 else {
                                         delete_node(&goals,c,choice);
                                 }
-
-
                         }
 
 			ptr1 = ptr1->next;
