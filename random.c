@@ -50,6 +50,8 @@ int weighted_choice_goals(node_t *goals)
         int n = list_size(goals);
         double *weights = calloc(n,sizeof *weights);
 
+        node_t *head = goals;
+
         int i=0;
         while(goals != NULL) {
                 weights[i++] = ((goal_t*)goals->data)->e_val;
@@ -57,6 +59,36 @@ int weighted_choice_goals(node_t *goals)
         }
 
         e_vals_to_probabilities(weights,n);
+
+        // Multiply weights to account for the time bound
+        double multiplier = 0;
+        {
+                double *spans = calloc(n, sizeof *spans);
+                node_t *iter = head;
+                while(iter != NULL) {
+                        goal_t *goal = (goal_t*)iter->data;
+                        double span = 1.0*(goal->upper_bound.tm_hour - goal->lower_bound.tm_hour);
+                        multiplier += 1.0/span;
+                        iter = iter->next;
+                }
+
+                iter = head;
+                int i=0;
+                while(iter != NULL) {
+                        goal_t *goal = (goal_t*)iter->data;
+                        double span = 1.0*(goal->upper_bound.tm_hour - goal->lower_bound.tm_hour);
+                        spans[i++] = (1.0/span)/multiplier;
+                        iter = iter->next;
+                }
+
+                for(int j=0;j<n;++j) {
+                        weights[j] *= spans[j];
+                }
+
+                free(spans);
+        }
+        //
+
         return weighted_choice(weights,n);
 }
 

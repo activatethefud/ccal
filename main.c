@@ -354,7 +354,6 @@ node_t *generate_schedule(char *date_string)
 
                 // Relative to data directory
                 node_t *goals_base = read_goals("goals.txt");
-                print_list(goals_base,print_goal);
                 //
 
                 // Set up comparisons
@@ -419,17 +418,12 @@ node_t *generate_schedule(char *date_string)
 
                                         goal_t *goal = (goal_t*)iter->data;
 
-                                        print_event_long(e1);
-                                        print_event_long(e2);
-                                        print_goal(goal);
-
                                         bool lower_check = compare_24h(&e1->end_time,&goal->lower_bound) >= 0;
                                         struct tm upper_bound = e1->end_time;
                                         float_to_tm(goal->duration,&upper_bound);
 
                                         bool upper_check = compare_24h(&upper_bound,&goal->upper_bound) <= 0;
 
-                                        printf("%d %d\n",lower_check,upper_check);
                                         if(!(lower_check && upper_check)) {
                                                 delete_node(&goals,c,goal);
                                         }
@@ -476,7 +470,7 @@ node_t *generate_schedule(char *date_string)
                         }
 
 			ptr1 = ptr1->next;
-			//delete_list(goals);
+			delete_list(goals);
 
                 }
 
