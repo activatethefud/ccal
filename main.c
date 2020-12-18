@@ -35,7 +35,7 @@
 #define LOWERBOUND_FIELD (4)
 #define UPPERBOUND_FIELD (5)
 
-#define GETOPT_FMT "nd:ptq:w:s:f:g"
+#define GETOPT_FMT "nd:ptq:w:s:f:g:"
 
 void Error(const bool cond, const char *msg, const char *file, const int line)
 {
@@ -88,7 +88,7 @@ status delete_event_prompt(unsigned event_id);
 void clear_date(char *date);
 int compare_events_by_id(void *a,void *b);
 int compare_goals_by_name(void *a,void *b);
-int get_event_id(node_t *ptr);
+unsigned int get_event_id(node_t *ptr);
 char *input(const char *prompt);
 node_t *read_goals(const char *goal_file);
 void print_goal(void *g);
@@ -145,6 +145,7 @@ int main(int argc, char **argv)
 	int generate_flag = 0;
 
 	char* query_arg = NULL;
+        char* generate_arg = NULL;
 
 	int long_opt_index;
 	int option;
@@ -156,7 +157,7 @@ int main(int argc, char **argv)
 		{ "delete", required_argument, &delete_flag, 1 },
 		{ "query", required_argument, &query_flag, 1},
 		{ "clear-date", no_argument, &clear_date_flag, 1},
-		{ "generate", no_argument, &generate_flag, 1 },
+		{ "generate", required_argument, &generate_flag, 1 },
 		{ 0, 0, 0, 0 }
 	};
 
@@ -171,6 +172,9 @@ int main(int argc, char **argv)
 				case 3:
 					query_arg = optarg;
 					break;
+                                case 5:
+                                        generate_arg = strdup(optarg);
+                                        break;
 			}
 		}
 
@@ -207,6 +211,7 @@ int main(int argc, char **argv)
 					break;
 				case 'g':
 					generate_flag = 1;
+                                        generate_arg = strdup(optarg);
 					break;
 			}
 		}
@@ -224,7 +229,9 @@ int main(int argc, char **argv)
 		}
 	}
 	else if(generate_flag) {
-		generate_schedule(input("Date: "));
+		//generate_schedule(input("Date: "));
+		generate_schedule(generate_arg);
+                free(generate_arg);
 	}
 	else if(query_flag && forward_flag) {
 
@@ -289,6 +296,7 @@ int main(int argc, char **argv)
 
 node_t *generate_schedule(char *date_string)
 {
+                //char *date_string = strdup(date_string_);
                 // Set up day start and end events, and add them to the event list
                 struct tm time = string_to_time(date_string);
 
@@ -296,7 +304,7 @@ node_t *generate_schedule(char *date_string)
                 struct tm day_end = string_to_time(date_string);
 
 		// No need to free date_string because it's optarg
-		free(date_string);
+		//free(date_string);
 
                 //day_end.tm_mday++;
                 day_end.tm_hour += 23;
@@ -322,7 +330,7 @@ node_t *generate_schedule(char *date_string)
                 get_events_on_date(time,&e_arr,&e_arr_size);
 
                 node_t *events = NULL;
-                
+
                 // Array to linked list, skip overlapped events
                 int i=0;
                 while(i<e_arr_size) {
@@ -365,19 +373,29 @@ node_t *generate_schedule(char *date_string)
 
                 // FEAT
                 // From goals delete those already scheduled on working date, provided the goal does not repeat
-                node_t *_iter = events;
-                while(_iter != NULL) {
-                        goal_t *g = malloc(sizeof *g);
-                        g->name = ((event*)_iter->data)->description;
+                // Also, those repeating will have their e_values increased
+                {
+                        node_t *_iter = events;
+                        while(_iter != NULL) {
+                                goal_t *g = malloc(sizeof *g);
+                                g->name = ((event*)_iter->data)->description;
 
-                        node_t *found = find_node(goals_base,c,g);
+                                node_t *found = find_node(goals_base,c,g);
 
-                        if(NULL != found) {
-                                delete_node(&goals_base,c,(goal_t*)found->data);
+                                if(NULL != found) {
+                                        goal_t *found_goal = (goal_t*)found->data;
+
+                                        if(found_goal->repeating == 0) {
+                                                delete_node(&goals_base,c,found_goal);
+                                        }
+                                        else {
+                                                found_goal->e_val *= 2;
+                                        }
+                                }
+
+                                free(g);
+                                _iter = _iter->next;
                         }
-
-                        free(g);
-                        _iter = _iter->next;
                 }
                 //
 
@@ -408,7 +426,7 @@ node_t *generate_schedule(char *date_string)
                         //
 
 			node_t *goals = copy_list(goals_base);
-			int n = list_size(goals);
+			//int n = list_size(goals);
 
                         // Delete all goals not withing time bounds
                         // NEW
@@ -460,6 +478,14 @@ node_t *generate_schedule(char *date_string)
 			        		delete_node(&goals,c,choice);
 			        		delete_node(&goals_base,c,choice);
 			        	}
+                                        else if(choice->repeating == 1) {
+                                                node_t *found = find_node(goals_base,c,choice);
+
+                                                if(found != NULL) {
+                                                        goal_t *tmp = (goal_t*)found->data;
+                                                        tmp->e_val *= 2;
+                                                }
+                                        }
 
                                         break;
 
@@ -497,6 +523,7 @@ node_t *generate_schedule(char *date_string)
 
                 free(c);
                 free(c_e);
+                //free(date_string);
 		return events;
 }
 
@@ -588,7 +615,7 @@ char *input(const char *prompt)
         return line;
 }
 
-int get_event_id(node_t *ptr)
+unsigned int get_event_id(node_t *ptr)
 {
         return ((event*)ptr->data)->event_id;
 }
@@ -940,7 +967,7 @@ void event_destructor(void *e)
 status save_event(event *e)
 {
         Assert(-1 != chdir("events"),"Error changing directory.");
-	int txt_len = 5;
+	//int txt_len = 5;
 
         // Save prompt
         printf("Save event: ");
@@ -1238,6 +1265,8 @@ void* filename_new_event(void *arg)
 	have_ID[event_id] = 1;
 
 	Assert(-1 != fclose(event_file),"Error closing file");
+
+        return NULL;
 }
 
 char* lineread(FILE *stream,const char *prompt)
@@ -1273,13 +1302,14 @@ status destructor()
 {
 	iterate_events(event_destructor);
 	free(events);
+        return 0;
 }
 
 status init()
 {
         // Set data directory
         char *data_dir = concat("/home/",concat(getenv("USER"),"/.config/ccal"));
-        char *events_dir = concat(data_dir,"/events");
+        //char *events_dir = concat(data_dir,"/events");
 
         // Set random seed
         srand(time(NULL));
@@ -1295,7 +1325,7 @@ status init()
 
 	load_events("events");
 
-	for(int i=1;i<=max_ID;++i) {
+	for(unsigned int i=1;i<=max_ID;++i) {
 		if(have_ID[i] == 0) {
 			first_free_ID = i;
 			break;
@@ -1346,11 +1376,13 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 
 status iterate_events(void (*func)(void*))
 {
-	for(int i=1;i<=max_ID;++i) {
+	for(unsigned int i=1;i<=max_ID;++i) {
 		if(have_ID[i]) {
 			(func)(events+i);
 		}
 	}
+
+        return 0;
 }
 
 void print_event_short(void *e)
@@ -1382,6 +1414,8 @@ void print_event_long(void *e)
 		case 2: repeat_mode = 'w'; break;
 		case 3: repeat_mode = 'm'; break;
 		case 4: repeat_mode = 'y'; break;
+                case 0: repeat_mode = '0'; break;
+                default: Assert(0,"Repeat mode must be in range [1,4]");
 	}
 
 	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%d] %s\n",
@@ -1402,6 +1436,7 @@ void* set_max_ID(void *arg)
 {
 	unsigned id = atoi((char*)arg);
 	max_ID = max(max_ID,id);
+        return NULL;
 }
 
 char *concat(const char *str1,const char *str2)
