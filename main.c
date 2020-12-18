@@ -70,6 +70,7 @@ event new_event();
 status delete_event(unsigned id_to_delete);
 status validate_time(int time);
 status validate_chrono_order(struct tm *time1, struct tm *time2);
+status validate_date_string(const char *string);
 double tm_difftime(struct tm *time1, struct tm *time2);
 status save_event(event *e);
 void print_usage();
@@ -125,6 +126,20 @@ int compare_24h(struct tm *t1,struct tm *t2)
         if(time1 < time2) return -1;
         if(time1 > time2) return 1;
         return 0;
+}
+
+#define between(x,a,b) ((a) <= (x) && (x) <= (b))
+
+status validate_date_string(const char *string)
+{
+        unsigned int d,m,y;
+        char c1,c2;
+        sscanf(string,"%u%c%u%c%u",&d,&c1,&m,&c2,&y);
+
+        if(between(d,1,31) && between(m,1,12) && c1 == '/' && c2 == '/') {
+                return 0;
+        }
+        return -1;
 }
 
 int main(int argc, char **argv)
@@ -230,6 +245,7 @@ int main(int argc, char **argv)
 	}
 	else if(generate_flag) {
 		//generate_schedule(input("Date: "));
+                Assert(-1 != validate_date_string(generate_arg),"Invalid date string");
 		generate_schedule(generate_arg);
                 free(generate_arg);
 	}
