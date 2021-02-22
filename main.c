@@ -394,6 +394,7 @@ node_t *generate_schedule(char *date_string)
                         node_t *_iter = events;
                         while(_iter != NULL) {
                                 goal_t *g = malloc(sizeof *g);
+                                event_t *e = _iter->data;
                                 g->name = ((event*)_iter->data)->description;
 
                                 node_t *found = find_node(goals_base,c,g);
@@ -405,7 +406,13 @@ node_t *generate_schedule(char *date_string)
                                                 delete_node(&goals_base,c,found_goal);
                                         }
                                         else {
-                                                found_goal->e_val *= 2;
+                                                //found_goal->e_val *= 2;
+                                                found_goal->e_val *= pow(
+                                                        2,
+                                                          fabs(tm_difftime(&e->end_time,&e->start_time)/3600)
+                                                          /
+                                                          found_goal->duration
+                                                );
                                         }
                                 }
 
@@ -960,7 +967,7 @@ void print_usage()
 	printf("Usage:\n"
 		"    -n --new - Add new event\n"
 		"    -p - Print all events\n"
-		"    -g --generate - Generate schedule\n"
+		"    -g --generate <date> - Generate schedule\n"
 		"    -d --delete <id> - Delete event with ID <id>\n"
 		"    -q --query <date> - Query events on <date>\n"
 		"    -w <date> - Print week's worth of events from <date>\n"
