@@ -17,15 +17,10 @@ Usage:
     -q --query <date> -f <num> - Print events for <num> of dates from <date>
 ```
 
-## Configuration
-
-Change the `DATE_FMT` and `DATA_DIR` as wanted
-
-```
-#define DATE_FMT "%d/%m/%Y"
-#define DATA_DIR "/home/nikola/.config/ccal/events"
-```
-
 ## Dependencies
 
 No dependencies other than the standard library.
+
+## Building
+
+With `make`
