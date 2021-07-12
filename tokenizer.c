@@ -1,6 +1,10 @@
 #include "tokenizer.h"
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
+#define DELIMITER ",\n"
 
-tokenizer_t *create_tokenizer(char *_line)
+tokenizer_t *create_tokenizer(char *_line,const char *delimiter)
 {
         char *line = strdup(_line);
 
@@ -13,7 +17,7 @@ tokenizer_t *create_tokenizer(char *_line)
 
         char *token;
 
-        while((tokenizer->token_count == 0 && (token = strtok(line,DELIMITER)) || (token = strtok(NULL,DELIMITER)))) {
+        while(tokenizer->token_count == 0 && (token = strtok(line,delimiter)) || (token = strtok(NULL,delimiter))) {
 
                 if(tokenizer->token_count == tokenizer->allocated_size) {
                         tokenizer->allocated_size *= 2;
@@ -34,7 +38,7 @@ char *tokenizer_get(tokenizer_t *tokenizer,int index)
         return tokenizer->tokens[index];
 }
 
-void delete_tokenizer(tokenizer_t *t)
+void free_tokenizer(tokenizer_t *t)
 {
         free(t->tokens);
         free(t);

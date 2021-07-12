@@ -31,23 +31,15 @@ typedef struct {
 	struct tm *skipped_dates;
 } event;
 
-typedef struct {
-        void *a;
-        void *b;
-        int (*fptr)(void*,void*);
-} comparison_t;
-
-typedef struct _node_t {
-        void *data;
-	size_t data_size;
-        struct _node_t *next;
-} node_t;
+typedef event event_t;
 
 typedef struct {
         char *name;
         float duration;
         double e_val;
 	int repeating;
+        struct tm lower_bound;
+        struct tm upper_bound;
 } goal_t;
 
 #endif

@@ -1,4 +1,9 @@
 #include "llist.h"
+#include <string.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
 
 int compare(comparison_t *c) { return (c->fptr)(c->a,c->b); }
 
