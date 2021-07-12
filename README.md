@@ -26,6 +26,6 @@ Change the `DATE_FMT` and `DATA_DIR` as wanted
 #define DATA_DIR "/home/nikola/.config/ccal/events"
 ```
 
-## Build
+## Dependencies
 
-Just `make`. No dependencies other than glibc.
+No dependencies other than the standard library.
