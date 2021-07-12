@@ -13,8 +13,8 @@
 #include <math.h>
 #include <getopt.h>
 #include <stdbool.h>
-#include <llist.h>
-#include <tokenizer.h>
+#include "llist.h"
+#include "tokenizer.h"
 #include "random.h"
 
 #define DATE_FMT "%d/%m/%Y"
@@ -771,9 +771,9 @@ float free_time(event *arr,const int arr_size,bool *overlap)
 
 		prev += intervals[i].opening_closing;
 
-		if(prev > 1 || prev < -1) {
-			*overlap = true;
-		}
+		//if(prev > 1 || prev < -1) {
+		//	*overlap = true;
+		//}
 	}
 
 	free(intervals);
