@@ -1161,7 +1161,7 @@ event new_event()
 		"End time before start time error");
 
 	// Repeat mode
-	tmp = lineread(stdin,"Repeat [n/0|d/1|w/2|m/3|y/4]: ");
+	tmp = lineread(stdin,"Repeat [0/n|1/d|2/w|3/m|4/y]: ");
 
 	if(tmp[0] == '\0') {
 		new.repeat_mode = 0;
@@ -1441,7 +1441,7 @@ void print_event_long(void *e)
                 default: Assert(0,"Repeat mode must be in range [1,4]");
 	}
 
-	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%d] %s\n",
+	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%u] %s\n",
 		ev.event_id,
 		start_date_str,
 		end_date_str,

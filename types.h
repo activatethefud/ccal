@@ -26,7 +26,7 @@ typedef struct {
 	struct tm start_time;
 	struct tm end_time;
 	repeat_t repeat_mode;
-	small_int repeat_frequency;
+	unsigned repeat_frequency;
 	unsigned num_of_skipped_dates;
 	struct tm *skipped_dates;
 } event;
