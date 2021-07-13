@@ -771,9 +771,9 @@ float free_time(event *arr,const int arr_size,bool *overlap)
 
 		prev += intervals[i].opening_closing;
 
-		//if(prev > 1 || prev < -1) {
-		//	*overlap = true;
-		//}
+		if(prev > 1 || prev < -1) {
+			*overlap = true;
+		}
 	}
 
 	free(intervals);
