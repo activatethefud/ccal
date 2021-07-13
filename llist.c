@@ -217,6 +217,8 @@ void sort_list(node_t *list,comparison_t *c)
 {
         bool swapped = true;
 
+        if(list == NULL) return;
+
         while(swapped) {
 
                 node_t *iter = list;
