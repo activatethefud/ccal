@@ -1123,7 +1123,7 @@ event new_event()
 	Assert('\0' != new.description[0],"Description must not be empty");
 
 	// Start date
-	tmp = lineread(stdin,"Start date: ");
+	tmp = lineread(stdin,"Start date [Today on empty]: ");
 
         if(tmp[0] == '\0') {
                 new.start_time = today;
@@ -1134,7 +1134,7 @@ event new_event()
 	free(tmp);
 
 	// Start time
-	tmp = lineread(stdin,"Start time: ");
+	tmp = lineread(stdin,"Start time [00:00 on empty] (ex. 1535): ");
 
 	if(tmp[0] == '\0') {
 		new.start_time.tm_hour = 0;
@@ -1150,7 +1150,7 @@ event new_event()
 	free(tmp);
 
 	// End date
-	tmp = lineread(stdin,"End date: ");
+	tmp = lineread(stdin,"End date [Start date on empty]: ");
 
 	if(tmp[0] == '\0') {
 		new.end_time = new.start_time;
@@ -1162,7 +1162,7 @@ event new_event()
 
 
 	// End time
-	tmp = lineread(stdin,"End time: ");
+	tmp = lineread(stdin,"End time [00:00 on empty] (ex. 1645): ");
 
 	if(tmp[0] == '\0') {
 		new.end_time.tm_hour = 0;
