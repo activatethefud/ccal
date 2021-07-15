@@ -1341,7 +1341,7 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 	DIR *data = opendir(dirname);
 
         if(NULL == data) {
-                Assert(-1 != system(concat("mkdir ",dirname)),"Error making directory");
+                Assert(-1 != system(concat("mkdir -p ",dirname)),"Error making directory");
                 Assert(0,"Error opening directory. Creating now");
         }
         Assert(-1 != chdir(dirname),"Error changing directory.");
