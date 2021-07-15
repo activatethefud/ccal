@@ -36,6 +36,10 @@ The schedule is generated with the option -g, getting goals information from the
 
 `# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1),Lower Bound(float)(time),Upper Bound(float)(time)`
 
+## Configuration
+
+The date format can be defined in the DATE\_FMT macro.
+
 ## Dependencies
 
 No dependencies other than the standard library.
