@@ -1133,17 +1133,6 @@ event new_event()
         }
 	free(tmp);
 
-	// End date
-	tmp = lineread(stdin,"End date: ");
-
-	if(tmp[0] == '\0') {
-		new.end_time = new.start_time;
-	}
-	else {
-		Assert(NULL != strptime(tmp,DATE_FMT,&(new.end_time)),"Error parsing end date");
-	}
-	free(tmp);
-
 	// Start time
 	tmp = lineread(stdin,"Start time: ");
 
@@ -1159,6 +1148,18 @@ event new_event()
 		new.start_time.tm_min = MINUTES(time);
 	}
 	free(tmp);
+
+	// End date
+	tmp = lineread(stdin,"End date: ");
+
+	if(tmp[0] == '\0') {
+		new.end_time = new.start_time;
+	}
+	else {
+		Assert(NULL != strptime(tmp,DATE_FMT,&(new.end_time)),"Error parsing end date");
+	}
+	free(tmp);
+
 
 	// End time
 	tmp = lineread(stdin,"End time: ");
