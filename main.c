@@ -507,7 +507,7 @@ node_t *read_goals(const char *goal_file)
 
         if(NULL == input) {
                 input = fopen(goal_file,"w");
-                fprintf(input,"# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1),Lower Bound(float)(time),Upper Bound(float)(time)");
+                fprintf(input,"# Description,Duration(float)(hours),Expected days to event(float),Repeating(0/1),Lower Bound(float)(time)(0 - 23.99999),Upper Bound(float)(time)(0 - 23.99999)");
                 fclose(input);
                 Assert(0,"Error opening goals file. Creating goals.txt in data directory.");
         }
