@@ -29,6 +29,7 @@ typedef struct {
 	unsigned repeat_frequency;
 	unsigned num_of_skipped_dates;
 	struct tm *skipped_dates;
+        struct tm repeat_until;
 } event;
 
 typedef event event_t;

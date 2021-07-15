@@ -53,6 +53,12 @@ static unsigned first_free_ID = 1;
 static small_int *have_ID;
 event* events;
 
+const static struct tm eternity = {
+        0, 0, 0, 1, 0, 3100, 4, 0, -1
+};
+
+static struct tm today;
+
 char *concat(const char *str1,const char *str2);
 status iterate_directory(const char *dirname,void* (*func)(void*));
 status init();
@@ -278,7 +284,8 @@ int main(int argc, char **argv)
 	}
         // TEST
 	else if(test_flag) {
-                puts(concat("Ayy","Lmao"));
+                answer_query(today);
+                //puts(concat("Ayy","Lmao"));
 	}
 	else if(delete_flag) {
 
@@ -332,12 +339,14 @@ node_t *generate_schedule(char *date_string)
                 day_start_event.description = "Day start";
                 day_start_event.start_time = day_start;
                 day_start_event.end_time = day_start;
+                day_start_event.repeat_until = eternity;
                 
                 event day_end_event;
                 day_end_event.event_id = 99999;
                 day_end_event.description = "Day end";
                 day_end_event.start_time = day_end;
                 day_end_event.end_time = day_end;
+                day_end_event.repeat_until = eternity;
                 //
 
                 // Get events on date and convert to linked list
@@ -485,6 +494,7 @@ node_t *generate_schedule(char *date_string)
 			        	new_event->repeat_mode = 0;
 			        	new_event->repeat_frequency = 0;
                                         new_event->num_of_skipped_dates = 0;
+                                        new_event->repeat_until = eternity;
 
                                         memcpy(&new_event->start_time,&((event*)ptr1->data)->end_time,sizeof((event*)ptr1->data)->end_time);
                                         memcpy(&new_event->end_time,&new_event->start_time,sizeof(new_event->start_time));
@@ -907,7 +917,7 @@ node_t* event_on_date(const event *e,struct tm *lower_bound,struct tm *upper_bou
 	event *e_cpy = malloc(sizeof *e_cpy);
 	Assert(NULL != memcpy(e_cpy,e,sizeof *e),"Error copying struct");
 
-	while(tm_difftime(&e_cpy->start_time,upper_bound) < 0) {
+	while(tm_difftime(&e_cpy->start_time,upper_bound) < 0 && tm_difftime(&e_cpy->start_time,&e_cpy->repeat_until) < 0) {
 
 		// Intersection
 		if(!(tm_difftime(&e_cpy->end_time,lower_bound) < 0)) {
@@ -1019,10 +1029,12 @@ status save_event(event *e)
 
 	char start_date[DATE_SIZE_MAX];
 	char end_date[DATE_SIZE_MAX];
+	char repeat_until[DATE_SIZE_MAX];
 	char tmp[DATE_SIZE_MAX];
 
 	strftime(start_date,DATE_SIZE_MAX,DATE_FMT,&(e->start_time));
 	strftime(end_date,DATE_SIZE_MAX,DATE_FMT,&(e->end_time));
+        strftime(repeat_until,DATE_SIZE_MAX,DATE_FMT,&(e->repeat_until));
 
 	FILE *output_file = fopen(filename,"w");
 	Assert(NULL != output_file,"Error opening file for writing");
@@ -1044,6 +1056,8 @@ status save_event(event *e)
 		strftime(tmp,DATE_SIZE_MAX,DATE_FMT,&(e->skipped_dates[i]));
 		fprintf(output_file,"%s\n",tmp);
 	}
+
+        fprintf(output_file,"%s\n",repeat_until);
 
 	fclose(output_file);
 	//free(filename);
@@ -1110,7 +1124,13 @@ event new_event()
 
 	// Start date
 	tmp = lineread(stdin,"Start date: ");
-	Assert(NULL != strptime(tmp,DATE_FMT,&(new.start_time)),"Error parsing start date");
+
+        if(tmp[0] == '\0') {
+                new.start_time = today;
+        }
+        else {
+	        Assert(NULL != strptime(tmp,DATE_FMT,&(new.start_time)),"Error parsing start date");
+        }
 	free(tmp);
 
 	// End date
@@ -1182,6 +1202,17 @@ event new_event()
 		new.repeat_frequency = abs(atoi(tmp));
 	}
 	free(tmp);
+
+        // Repeat until
+
+        tmp = lineread(stdin,"Repeat until: ");
+
+        if(tmp[0] == '\0') {
+                new.repeat_until = eternity;
+        }
+        else {
+                Assert(NULL != strptime(tmp,DATE_FMT,&new.repeat_until),"Error parsing repeat until date");
+        }
 
 	new.num_of_skipped_dates = 0;
 
@@ -1282,6 +1313,16 @@ void* filename_new_event(void *arg)
 		free(tmp);
 	}
 
+        // Repeat until
+        tmp = lineread(event_file,NULL);
+
+        if(NULL != tmp) {
+	        Assert(NULL != strptime(tmp,DATE_FMT,&(new_event.repeat_until)),"Error parsing repeat until date from file");
+        }
+        else {
+                new_event.repeat_until = eternity;
+        }
+
 	unsigned event_id = new_event.event_id;
 
 	events[event_id] = new_event;
@@ -1302,7 +1343,10 @@ char* lineread(FILE *stream,const char *prompt)
 	size_t bytes_allocated = 0;
 	ssize_t bytes_read;
 
-	Assert(-1 != (bytes_read = getline(&line,&bytes_allocated,stream)),"Getline error");
+	//Assert(-1 != (bytes_read = getline(&line,&bytes_allocated,stream)),"Getline error");
+	if(-1 == (bytes_read = getline(&line,&bytes_allocated,stream))) {
+                return NULL;
+        }
 
 	// Strip newline
 	line[bytes_read-1] = '\0';
@@ -1333,6 +1377,10 @@ status init()
         // Set data directory
         char *data_dir = concat("/home/",concat(getenv("USER"),"/.config/ccal"));
         //char *events_dir = concat(data_dir,"/events");
+
+        // Set today
+        time_t today_ = time(NULL);
+        today = *gmtime(&today_);
 
         // Set random seed
         srand(time(NULL));
@@ -1426,11 +1474,13 @@ void print_event_long(void *e)
 	event ev = *(event*)e;
 	char start_date_str[DATE_SIZE_MAX];
 	char end_date_str[DATE_SIZE_MAX];
+	char repeat_until_str[DATE_SIZE_MAX];
 
 	char repeat_mode = '0';
 
 	strftime(start_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.start_time);
 	strftime(end_date_str,DATE_SIZE_MAX,DATE_FMT,&ev.end_time);
+	strftime(repeat_until_str,DATE_SIZE_MAX,DATE_FMT,&ev.repeat_until);
 
 	switch(ev.repeat_mode) {
 		case 1: repeat_mode = 'd'; break;
@@ -1441,7 +1491,7 @@ void print_event_long(void *e)
                 default: Assert(0,"Repeat mode must be in range [1,4]");
 	}
 
-	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%u] %s\n",
+	printf("(%u) [%s|%s] [%02d:%02d -> %02d:%02d] [%c|%u] r(%s) %s\n",
 		ev.event_id,
 		start_date_str,
 		end_date_str,
@@ -1451,6 +1501,7 @@ void print_event_long(void *e)
 		ev.end_time.tm_min,
 		repeat_mode,
 		ev.repeat_frequency,
+                repeat_until_str,
 		ev.description);
 
 }
