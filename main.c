@@ -1309,7 +1309,7 @@ status init()
 	// Change working directory to data_dir, and create if missing
         if(-1 == chdir(data_dir)) {
                 system(concat("mkdir -p ",data_dir));
-                Assert(0,"Data dir missing. Creating now.");
+                Assert(0,"Data dir missing. Creating now");
         }
 
 	iterate_directory("events",set_max_ID);
@@ -1341,8 +1341,9 @@ status iterate_directory(const char *dirname,void* (*func)(void*))
 	DIR *data = opendir(dirname);
 
         if(NULL == data) {
+                char *error_msg = concat(concat("Error opening directory ", dirname),". Creating now.");
                 Assert(-1 != system(concat("mkdir -p ",dirname)),"Error making directory");
-                Assert(0,"Error opening directory. Creating now");
+                Assert(0,error_msg);
         }
         Assert(-1 != chdir(dirname),"Error changing directory.");
 
@@ -1439,9 +1440,10 @@ char *concat(const char *str1,const char *str2)
         int n1 = strlen(str1);
         int n2 = strlen(str2);
 
-        char *tmp = malloc(n1+1 + n2+1);
-        strncpy(tmp,str1,n1);
-        strncat(tmp,str2,n2);
+        char *tmp = calloc(n1+1 + n2+1,sizeof(char));
+        strncpy(tmp,str1,n1+1);
+        strncat(tmp,str2,n2+1);
+
         return tmp;
 }
 
