@@ -661,8 +661,7 @@ int compare_intervals(const void *i1, const void *i2)
 	double diff = tm_difftime(&((interval_t*)i1)->time,&((interval_t*)i2)->time);
 
         if(diff <= 0) return 1;
-        if(diff > 0) return -1;
-        return 0;
+        return -1;
 }
 
 
