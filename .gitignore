@@ -6,3 +6,4 @@ Web
 goals.txt
 .fuse*
 splint.sh
+build/
